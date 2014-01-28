@@ -1,0 +1,94 @@
+<html>
+<head>
+<script src="jquery-2.1.0.min.js"></script>
+<script type="text/javascript">
+
+
+function WebSocketSub()
+{
+  var ws_logs = $('#ws_logs');
+  ws_logs.val('');
+
+  if ("WebSocket" in window) {
+    var ws;
+    ws = new WebSocket("ws://localhost:6767/sub");
+    $('#if').show();
+    bindSubUnsub(ws, ws_logs);
+
+    ws.onopen = function () {
+      ws_logs.val(ws_logs.val() + "Opened WebSocket Connection\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    };
+
+    ws.onmessage = function(event) {
+      var msg = event.data;
+      ws_logs.val(ws_logs.val() + "Received message '" + msg + "'\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    };
+
+    ws.onclose = function() {
+      ws_logs.val(ws_logs.val() + "Closed WebSocket Connection\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    };
+
+  } else {
+    ws_logs.val(ws_logs.val() + "Your browser does not support WebSocket");
+    ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+  }
+}
+
+function bindSubUnsub(ws, ws_logs) {
+  $('#subscribe').click(function() {
+    var topic = $('#topic').val();
+    if (topic) {
+      var msg  = "sub:"+topic;
+      ws.send(msg);
+    } else {
+      ws_logs.val(ws_logs.val() + "Please enter a topic\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    }
+  });
+  $('#unsubscribe').click(function() {
+    var topic = $('#untopic').val();
+    if (topic) {
+      var msg = "unsub:"+topic;
+      ws.send(msg);
+    } else {
+      ws_logs.val(ws_logs.val() + "Please enter a topic\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    }
+  });
+  $('#close').click(function() {
+    ws.close();
+    $('#if').hide();
+  });
+}
+
+</script>
+</head>
+
+<body>
+<div id="ws">
+  <a href="javascript:WebSocketSub()"> Run WebSocket </a>
+  <br>
+  <textarea cols="80" rows="10" id="ws_logs">
+  </textarea>
+  <br>
+  <div id='if' style="display:none">
+
+  <label for="topic">Topic</label>
+  <input id="topic" type="text"/>
+  <input id="subscribe" type="submit" value="Subscribe"/>
+
+  <br>
+  <label for="untopic">Topic</label>
+  <input id="untopic" type="text"/>
+  <input id="unsubscribe" type="submit" value="Unsubscribe"/>
+
+  <br>
+  <label for="close">Close connection</label>
+  <input id="close" type="submit" value="Close"/>
+  </div>
+</div>
+</body>
+</html>
