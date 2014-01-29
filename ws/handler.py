@@ -4,6 +4,7 @@ from mongrel2.request import Request
 import wsutil
 import sys
 import time
+import datetime
 import re
 import zmq
 import threading
@@ -20,7 +21,7 @@ closingMessages={}
 
 badUnicode=re.compile(u'[\ud800-\udfff]')
 
-logf=open('echo.log','wb')
+logf=open('handler.log','wb')
 #logf=open('/dev/null','wb')
 #logf=sys.stdout
 
@@ -49,23 +50,58 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
     poller.register(cmds)
     poller.register(be)
 
+    ident = [sender, conn_id]
+    liveness = 3
+    last_ping = datetime.datetime.now()
+
+    print "Starting thread for connection %s" %(conn_id)
+
     while True:
-        socks = dict(poller.poll())
+        socks = dict(poller.poll(timeout = 5000))
+
         if cmds in socks:
-          msg_parts = cmds.recv_multipart()
-          cmd = msg_parts[1]
-          if (cmd == "sub"):
-            be.setsockopt_string(zmq.SUBSCRIBE, msg_parts[2].decode("ascii"))
-            print "connection %s subscribed to '%s'" %(conn_id, msg_parts[2])
-          elif (cmd == "unsub"):
-            be.setsockopt_string(zmq.UNSUBSCRIBE, msg_parts[2].decode("ascii"))
-            print "connection %s unsubscribed '%s'" %(conn_id, msg_parts[2])
+            msg_parts = cmds.recv_multipart()
+            cmd = msg_parts[1]
+            # print msg_parts
+            if (cmd == "sub"):
+              be.setsockopt_string(zmq.SUBSCRIBE, msg_parts[2].decode("ascii"))
+              print "connection %s subscribed to '%s'" %(conn_id, msg_parts[2])
+            elif (cmd == "unsub"):
+              be.setsockopt_string(zmq.UNSUBSCRIBE, msg_parts[2].decode("ascii"))
+              print "connection %s unsubscribed '%s'" %(conn_id, msg_parts[2])
+            elif (cmd == "pong"):
+              liveness = 3
+            elif (cmd == "close"):
+              # Client closed WS, exit thread
+              print "Client requested WS close on connection %s" %(conn_id)
+              break;
+
+        # no input from client
+        elif (datetime.datetime.now() >
+                last_ping + datetime.timedelta(seconds=5)):
+            liveness = liveness - 1
+            # No response to pings for 3 times, assume client is dead
+            if (liveness <= 0):
+                print "connection %s had not respond to 3 pings; it is dead" %(conn_id)
+                relay.send_multipart(ident + ["close"])
+                break;
+
+            # Ping WS client
+            print "Ping connection %s" %(conn_id)
+            relay.send_multipart(ident + ["ping"])
+            last_ping = datetime.datetime.now()
 
         if be in socks:
-          msg_parts = be.recv_multipart()
-          #print msg_parts
-          relay.send_multipart([sender, conn_id] + msg_parts)
-    
+            msg_parts = be.recv_multipart()
+            #print msg_parts
+            relay.send_multipart(ident + ["pub"] + msg_parts)
+
+    # Close sockets
+    cmds.close()
+    relay.close()
+    be.close()
+
+
 
 cmds_url = "inproc://commands"
 relay_url = "inproc://relay"
@@ -104,8 +140,20 @@ while True:
     if relay in socks:
         msg_parts = relay.recv_multipart()
         # print msg_parts
-        conn.send(msg_parts[0], msg_parts[1],
-              handler.websocket_response(json.dumps(msg_parts[2:])))
+        w_type = msg_parts[2]
+
+        if (w_type == "ping"):
+            conn.send(msg_parts[0], msg_parts[1],
+                  handler.websocket_response("", wsutil.OP_PING))
+
+        elif (w_type == "pub"):
+            conn.send(msg_parts[0], msg_parts[1],
+                  handler.websocket_response(json.dumps(msg_parts[3:])))
+
+        elif (w_type == "close"):
+            conn.send(msg_parts[0], msg_parts[1],
+                handler.websocket_response('', wsutil.OP_CLOSE))
+            print "closed connection"
 
     if conn.reqs in socks:
         req = Request.parse(conn.reqs.recv())
@@ -129,6 +177,8 @@ while True:
             thread = threading.Thread(target=worker_routine,
                 args=(req.sender, req.conn_id, cmds_url, relay_url, be_url))
             thread.start()
+            conn.reply_websocket(req, "this is a ping from server", wsutil.OP_PING)
+            # conn.reply_websocket(req, "this is a pong from server", wsutil.OP_PONG)
             continue
     
         if req.headers.get('METHOD') != 'WEBSOCKET':
@@ -156,6 +206,7 @@ while True:
             continue
     
         if opcode == wsutil.OP_CLOSE:
+            cmds.send_multipart([req.conn_id, "close", ''])
             if req.conn_id in closingMessages:
                 del closingMessages[req.conn_id]
                 conn.reply(req,'')
@@ -172,14 +223,17 @@ while True:
             continue
             
         if (opcode & 0x8) != 0:
-            if opcode ==wsutil.OP_PING:
+            if opcode == wsutil.OP_PING:
+                print "got ping"
                 opcode = wsutil.OP_PONG
                 conn.reply_websocket(req,wsdata,opcode)
     
+            if opcode == wsutil.OP_PONG:
+                # Keep worker alive
+                cmds.send_multipart([req.conn_id, "pong", ""])
+
             continue
     
-        if opcode == wsutil.OP_PONG:
-            continue # We don't send pings, so ignore pongs
 
         if(opcode == wsutil.OP_TEXT):
             try:
@@ -202,7 +256,6 @@ while True:
                     conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
 
                 else:
-                    print "be wary"
                     conn.reply_websocket(req, "Usage: '[sub|unsub]:TOPIC'", opcode);
                 continue
             except UnicodeError:

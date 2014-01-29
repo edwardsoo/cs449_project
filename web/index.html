@@ -6,6 +6,8 @@
 
 function WebSocketSub()
 {
+  $('#start_ws').hide();
+
   var ws_logs = $('#ws_logs');
   ws_logs.val('');
 
@@ -61,6 +63,7 @@ function bindSubUnsub(ws, ws_logs) {
   $('#close').click(function() {
     ws.close();
     $('#if').hide();
+    $('#start_ws').show();
   });
 }
 
@@ -69,7 +72,7 @@ function bindSubUnsub(ws, ws_logs) {
 
 <body>
 <div id="ws">
-  <a href="javascript:WebSocketSub()"> Run WebSocket </a>
+  <a id="start_ws" href="javascript:WebSocketSub()"> Run WebSocket </a>
   <br>
   <textarea cols="80" rows="10" id="ws_logs">
   </textarea>
