@@ -35,15 +35,18 @@ def abortConnection(conn,req,reason='none',code=None):
         conn.reply(req,'')
     print >>logf,'abort',code,reason
 
-def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
+def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
     context = zmq.Context.instance()
+
     cmds = context.socket(zmq.SUB)
     be = context.socket(zmq.SUB)
     relay = context.socket(zmq.PUSH)
+    be_push = context.socket(zmq.PUSH)
 
     cmds.connect(cmds_url)
     relay.connect(relay_url)
     be.connect(pub_url)
+    be_push.connect(push_url)
     
     cmds.setsockopt(zmq.SUBSCRIBE, conn_id)
     poller = zmq.Poller()
@@ -53,6 +56,7 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
     ident = [sender, conn_id]
     liveness = 3
     last_ping = datetime.datetime.now()
+    sub_m_lat = False
 
     print "Starting thread for connection %s" %(conn_id)
 
@@ -67,14 +71,24 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
               # be.setsockopt_string(zmq.SUBSCRIBE, msg_parts[2].decode("ascii"))
               be.setsockopt(zmq.SUBSCRIBE, msg_parts[2])
               print "connection %s subscribed to '%s'" %(conn_id, msg_parts[2])
+
             elif (cmd == "unsub"):
-              be.setsockopt_string(zmq.UNSUBSCRIBE, msg_parts[2].decode("ascii"))
+              be.setsockopt(zmq.UNSUBSCRIBE, msg_parts[2])
               print "connection %s unsubscribed '%s'" %(conn_id, msg_parts[2])
+
             elif (cmd == "pong"):
               liveness = 3
+
+            # For measuring RTT
+            elif (cmd == "m_lat"):
+              if (sub_m_lat == False):
+                  be.setsockopt(zmq.SUBSCRIBE, "m_lat")
+                  sub_m_lat = True
+              be_push.send(cmd)
+
             elif (cmd == "close"):
               # Client closed WS, exit thread
-              print "Client requested WS close on connection %s" %(conn_id)
+              print "Client requested WS close on connection %s\n" %(conn_id)
               break;
 
         # no input from client
@@ -94,7 +108,7 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
 
         if be in socks:
             msg_parts = be.recv_multipart()
-            #print msg_parts
+            # print msg_parts
             relay.send_multipart(ident + ["pub"] + msg_parts)
 
     # Close sockets
@@ -107,6 +121,7 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
 cmds_url = "inproc://commands"
 relay_url = "inproc://relay"
 be_url = "tcp://127.0.0.1:9990"
+be_push_url = "tcp://127.0.0.1:9991"
 
 context = zmq.Context.instance()
 sub = context.socket(zmq.SUB)
@@ -138,6 +153,7 @@ while True:
         print "FAILED RECV"
         sys.exit()
 
+    # Route worker thread messages back to WS client using conn_id & sender_id
     if relay in socks:
         msg_parts = relay.recv_multipart()
         # print msg_parts
@@ -176,7 +192,7 @@ while True:
 
             # Spawn a worker thread to handler client subscriptions
             thread = threading.Thread(target=worker_routine,
-                args=(req.sender, req.conn_id, cmds_url, relay_url, be_url))
+                args=(req.sender, req.conn_id, cmds_url, relay_url, be_url, be_push_url))
             thread.start()
             conn.reply_websocket(req, "this is a ping from server", wsutil.OP_PING)
             # conn.reply_websocket(req, "this is a pong from server", wsutil.OP_PONG)
@@ -245,16 +261,27 @@ while True:
                 #for c in x:
                     #if (0xd800 <= ord(c) <= 0xdfff):
                         #raise UnicodeError('Surrogates not allowed')
+
                 clnt_cmds = wsdata.split(':')
+                if (len(clnt_cmds) < 2):
+                    continue
+
                 cmd = clnt_cmds[0]
                 val = clnt_cmds[1]
+
+                # Subscribe to a topic
                 if (cmd == "sub"):
                     cmds.send_multipart([req.conn_id, cmd, val])
                     conn.reply_websocket(req, "Subscribed to '%s'" %(val), opcode)
 
+                # Unsubscribe a topic
                 elif (cmd == "unsub"):
                     cmds.send_multipart([req.conn_id, cmd, val])
                     conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
+
+                # Measure roundtrip latency
+                elif (cmd == "m_lat"):
+                    cmds.send_multipart([req.conn_id, cmd, ''])
 
                 else:
                     conn.reply_websocket(req, "Usage: '[sub|unsub]:TOPIC'", opcode);
