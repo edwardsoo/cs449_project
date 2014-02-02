@@ -64,7 +64,8 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url):
             cmd = msg_parts[1]
             # print msg_parts
             if (cmd == "sub"):
-              be.setsockopt_string(zmq.SUBSCRIBE, msg_parts[2].decode("ascii"))
+              # be.setsockopt_string(zmq.SUBSCRIBE, msg_parts[2].decode("ascii"))
+              be.setsockopt(zmq.SUBSCRIBE, msg_parts[2])
               print "connection %s subscribed to '%s'" %(conn_id, msg_parts[2])
             elif (cmd == "unsub"):
               be.setsockopt_string(zmq.UNSUBSCRIBE, msg_parts[2].decode("ascii"))

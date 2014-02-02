@@ -13,6 +13,7 @@ try:
     relhumidity = randrange(10, 60)
   
     pub.send_multipart([str(zipcode), str(temperature), str(relhumidity)])
+    # pub.send_multipart([byte(zipcode), byte(temperature), byte(relhumidity)])
     #time.sleep(1)
 except KeyboardInterrupt:
   print "Interrupt received"

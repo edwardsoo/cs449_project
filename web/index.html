@@ -47,6 +47,10 @@ function WebSocketSub()
 }
 
 function bindSubUnsub(ws, ws_logs) {
+  $('#subscribe').unbind();
+  $('#unsubscribe').unbind();
+  $('#close').unbind();
+
   $('#subscribe').click(function() {
     var topic = $('#topic').val();
     if (topic && ws.readyState == WebSocket.OPEN) {
@@ -54,6 +58,9 @@ function bindSubUnsub(ws, ws_logs) {
       ws.send(msg);
     } else if (ws.readyState == WebSocket.OPEN) {
       ws_logs.val(ws_logs.val() + "Please enter a topic\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    } else {
+      ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
   });
@@ -65,6 +72,10 @@ function bindSubUnsub(ws, ws_logs) {
       ws.send(msg);
     } else if (ws.readyState == WebSocket.OPEN) {
       ws_logs.val(ws_logs.val() + "Please enter a topic\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    } else {
+      console.debug(ws.readyState);
+      ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
   });
