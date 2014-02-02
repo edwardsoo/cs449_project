@@ -8,18 +8,25 @@ function WebSocketSub()
 {
   $('#start_ws').hide();
 
+  // Clear log textarea
   var ws_logs = $('#ws_logs');
   ws_logs.val('');
 
   if ("WebSocket" in window) {
     var ws;
     ws = new WebSocket("ws://localhost:6767/sub");
-    $('#if').show();
-    bindSubUnsub(ws, ws_logs);
+
+    ws_logs.val(ws_logs.val() + "Opening WebSocket Connection...\n");
+    ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
 
     ws.onopen = function () {
       ws_logs.val(ws_logs.val() + "Opened WebSocket Connection\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+
+      // Show application interface
+      $('#if').show();
+      bindSubUnsub(ws, ws_logs);
+
     };
 
     ws.onmessage = function(event) {
@@ -42,24 +49,26 @@ function WebSocketSub()
 function bindSubUnsub(ws, ws_logs) {
   $('#subscribe').click(function() {
     var topic = $('#topic').val();
-    if (topic) {
+    if (topic && ws.readyState == WebSocket.OPEN) {
       var msg  = "sub:"+topic;
       ws.send(msg);
-    } else {
+    } else if (ws.readyState == WebSocket.OPEN) {
       ws_logs.val(ws_logs.val() + "Please enter a topic\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
   });
+
   $('#unsubscribe').click(function() {
     var topic = $('#untopic').val();
-    if (topic) {
+    if (topic && ws.readyState == WebSocket.OPEN) {
       var msg = "unsub:"+topic;
       ws.send(msg);
-    } else {
+    } else if (ws.readyState == WebSocket.OPEN) {
       ws_logs.val(ws_logs.val() + "Please enter a topic\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
   });
+
   $('#close').click(function() {
     ws.close();
     $('#if').hide();
