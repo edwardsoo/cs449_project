@@ -46,9 +46,45 @@ function WebSocketSub()
   }
 }
 
+function m_down(num, size) {
+  var ws = new WebSocket("ws://localhost:6767/sub");
+  var start, stop;
+  var tts = []; // transmission times
+  var tps = []; // throughput in MB/s
+  var m = 1;
+
+  var onmsg_cb = function(e) {
+    var msg = JSON.parse(e.data);
+    if (msg[0].match(/^start/)) {
+      start = window.performance.now();
+    } else if (msg[0].match(/^stop/)) {
+      stop = window.performance.now();
+      tts.push(stop - start);
+      tps.push(size/((stop - start)*1000))
+      if (m < num) {
+        ws.send("m_down:"+size);
+        m++;
+      } else {
+        var ws_logs = $('#ws_logs');
+        ws_logs.val("Transmission times (ms): " + JSON.stringify(tts));
+        ws_logs.val(ws_logs.val() + "\nThroughputs (MB/sec): " + JSON.stringify(tps));
+        ws.close();
+      }
+    }
+  };
+
+  ws.onopen = function() {
+    ws.onmessage= onmsg_cb;
+    ws.send("m_down:"+size);
+  };
+
+  return 0;
+}
+
 function m_lat(num) {
   var ws = new WebSocket("ws://localhost:6767/sub");
   var start;
+  // round trip times
   var rtts = [];
   var m = 1;
 
@@ -67,18 +103,15 @@ function m_lat(num) {
       console.log(rtts);
       var ws_logs = $('#ws_logs');
       ws_logs.val(JSON.stringify(rtts));
+      ws.close();
     } else {
       console.log("how does this happen?");
     }
   };
 
   ws.onopen = function() {
-    // Give worker thread some time to subscribe to m_lat
-    ws.send("m_lat:0");
-    setTimeout(function() {
-        ws.onmessage = onmsg_cb;
-        measure();
-    }, 1500);
+    ws.onmessage = onmsg_cb;
+    measure();
   }
   return 0;
 }

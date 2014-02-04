@@ -1,6 +1,8 @@
 import zmq
 import time
+import string
 from random import randrange
+from random import choice
 
 try:
   context= zmq.Context()
@@ -18,9 +20,20 @@ try:
     pub.send_multipart([str(zipcode), str(temperature), str(relhumidity)])
 
     try:
-        msg = pull.recv(flags=zmq.NOBLOCK)
+        msg_parts = pull.recv_multipart(flags=zmq.NOBLOCK)
+        # print msg_parts
+        msg = msg_parts[0]
+        conn_id = msg_parts[1]
+        val = msg_parts[2]
         if (msg == "m_lat"):
             pub.send_multipart([msg])
+        if (msg == "m_down"):
+            reply = ''.join(choice(string.ascii_uppercase + string.digits)
+                for x in range(int(val)))
+            pub.send_multipart(["start"+conn_id])
+            pub.send_multipart(["data"+conn_id, reply])
+            pub.send_multipart(["stop"+conn_id])
+            # print "sent " + val + " bytes of data"
     except zmq.ZMQError as e:
         if (e.errno == zmq.EAGAIN):
             pass

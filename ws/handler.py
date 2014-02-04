@@ -56,7 +56,12 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
     ident = [sender, conn_id]
     liveness = 3
     last_ping = datetime.datetime.now()
-    sub_m_lat = False
+
+    # Subscibe to measurements published
+    be.setsockopt(zmq.SUBSCRIBE, "m_lat" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "data" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "start" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "stop" + conn_id)
 
     print "Starting thread for connection %s" %(conn_id)
 
@@ -66,32 +71,30 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
         if cmds in socks:
             msg_parts = cmds.recv_multipart()
             cmd = msg_parts[1]
+            val = msg_parts[2]
             # print msg_parts
             if (cmd == "sub"):
-              # be.setsockopt_string(zmq.SUBSCRIBE, msg_parts[2].decode("ascii"))
-              be.setsockopt(zmq.SUBSCRIBE, msg_parts[2])
-              print "connection %s subscribed to '%s'" %(conn_id, msg_parts[2])
+              # be.setsockopt_string(zmq.SUBSCRIBE, val.decode("ascii"))
+              be.setsockopt(zmq.SUBSCRIBE, val)
+              print "connection %s subscribed to '%s'" %(conn_id, val)
 
             elif (cmd == "unsub"):
-              be.setsockopt(zmq.UNSUBSCRIBE, msg_parts[2])
-              print "connection %s unsubscribed '%s'" %(conn_id, msg_parts[2])
+              be.setsockopt(zmq.UNSUBSCRIBE, val)
+              print "connection %s unsubscribed '%s'" %(conn_id, val)
 
             elif (cmd == "pong"):
               liveness = 3
 
-            # For measuring RTT
-            elif (cmd == "m_lat"):
-              if (sub_m_lat == False):
-                  be.setsockopt(zmq.SUBSCRIBE, "m_lat")
-                  sub_m_lat = True
-              be_push.send(cmd)
+            # For measurements
+            elif (cmd == "m_lat" or cmd == "m_down" or cmd == "m_up"):
+              be_push.send_multipart([cmd, conn_id, val])
 
             elif (cmd == "close"):
               # Client closed WS, exit thread
               print "Client requested WS close on connection %s\n" %(conn_id)
               break;
 
-        # no input from client
+        # Poll timeout, no input from client
         elif (datetime.datetime.now() >
                 last_ping + datetime.timedelta(seconds=5)):
             liveness = liveness - 1
@@ -280,8 +283,10 @@ while True:
                     conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
 
                 # Measure roundtrip latency
-                elif (cmd == "m_lat"):
-                    cmds.send_multipart([req.conn_id, cmd, ''])
+                # Measure download bandwidth
+                # Measure upload bandwidth
+                elif (cmd == "m_lat" or cmd == "m_down" or cmd == "m_up"):
+                    cmds.send_multipart([req.conn_id, cmd, val])
 
                 else:
                     conn.reply_websocket(req, "Usage: '[sub|unsub]:TOPIC'", opcode);
