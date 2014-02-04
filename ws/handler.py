@@ -8,7 +8,9 @@ import datetime
 import re
 import zmq
 import threading
-import signal
+import string
+from random import randrange
+from random import choice
 
 sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
 
@@ -58,10 +60,10 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
     last_ping = datetime.datetime.now()
 
     # Subscibe to measurements published
-    be.setsockopt(zmq.SUBSCRIBE, "m_lat" + conn_id)
-    be.setsockopt(zmq.SUBSCRIBE, "data" + conn_id)
-    be.setsockopt(zmq.SUBSCRIBE, "start" + conn_id)
-    be.setsockopt(zmq.SUBSCRIBE, "stop" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "m_lat_f" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "data_f" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "start_f" + conn_id)
+    be.setsockopt(zmq.SUBSCRIBE, "stop_f" + conn_id)
 
     print "Starting thread for connection %s" %(conn_id)
 
@@ -72,7 +74,7 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
             msg_parts = cmds.recv_multipart()
             cmd = msg_parts[1]
             val = msg_parts[2]
-            # print msg_parts
+            # print "worker recv from handler: " + str(msg_parts)
             if (cmd == "sub"):
               # be.setsockopt_string(zmq.SUBSCRIBE, val.decode("ascii"))
               be.setsockopt(zmq.SUBSCRIBE, val)
@@ -86,7 +88,16 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
               liveness = 3
 
             # For measurements
-            elif (cmd == "m_lat" or cmd == "m_down" or cmd == "m_up"):
+            elif (cmd == "m_lat_w"):
+                relay.send_multipart(ident + ["pub", "m_lat_w"])
+            elif (cmd == "m_down_w"):
+                reply = ''.join(choice(string.ascii_uppercase + string.digits)
+                    for x in range(int(val)))
+                relay.send_multipart(ident + ["pub", "start_w"])
+                relay.send_multipart(ident + ["pub", "data_w", reply])
+                relay.send_multipart(ident + ["pub", "stop_w"])
+              
+            elif (cmd == "m_lat_f" or cmd == "m_down_f"):
               be_push.send_multipart([cmd, conn_id, val])
 
             elif (cmd == "close"):
@@ -105,13 +116,13 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
                 break;
 
             # Ping WS client
-            print "Ping connection %s" %(conn_id)
+            # print "Ping connection %s" %(conn_id)
             relay.send_multipart(ident + ["ping"])
             last_ping = datetime.datetime.now()
 
         if be in socks:
             msg_parts = be.recv_multipart()
-            # print msg_parts
+            # print "worker recv from BE: " + str(msg_parts)
             relay.send_multipart(ident + ["pub"] + msg_parts)
 
     # Close sockets
@@ -265,6 +276,7 @@ while True:
                     #if (0xd800 <= ord(c) <= 0xdfff):
                         #raise UnicodeError('Surrogates not allowed')
 
+                # print "handler recv: " + wsdata
                 clnt_cmds = wsdata.split(':')
                 if (len(clnt_cmds) < 2):
                     continue
@@ -285,7 +297,17 @@ while True:
                 # Measure roundtrip latency
                 # Measure download bandwidth
                 # Measure upload bandwidth
-                elif (cmd == "m_lat" or cmd == "m_down" or cmd == "m_up"):
+                elif (cmd == "m_lat_h"):
+                    conn.reply_websocket(req, json.dumps(["m_lat_h"]), opcode)
+                elif (cmd == "m_down_h"):
+                    reply = ''.join(choice(string.ascii_uppercase + string.digits)
+                        for x in range(int(val)))
+                    conn.reply_websocket(req, json.dumps(["start_h"]), opcode)
+                    conn.reply_websocket(req, json.dumps(["data_h", reply]), opcode)
+                    conn.reply_websocket(req, json.dumps(["stop_h"]), opcode)
+                    
+ 
+                elif (cmd.startswith("m_lat") or cmd.startswith("m_down")):
                     cmds.send_multipart([req.conn_id, cmd, val])
 
                 else:

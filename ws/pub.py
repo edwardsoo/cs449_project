@@ -25,14 +25,14 @@ try:
         msg = msg_parts[0]
         conn_id = msg_parts[1]
         val = msg_parts[2]
-        if (msg == "m_lat"):
-            pub.send_multipart([msg])
-        if (msg == "m_down"):
+        if (msg == "m_lat_f"):
+            pub.send_multipart([msg+conn_id])
+        if (msg == "m_down_f"):
             reply = ''.join(choice(string.ascii_uppercase + string.digits)
                 for x in range(int(val)))
-            pub.send_multipart(["start"+conn_id])
-            pub.send_multipart(["data"+conn_id, reply])
-            pub.send_multipart(["stop"+conn_id])
+            pub.send_multipart(["start_f"+conn_id])
+            pub.send_multipart(["data_f"+conn_id, reply])
+            pub.send_multipart(["stop_f"+conn_id])
             # print "sent " + val + " bytes of data"
     except zmq.ZMQError as e:
         if (e.errno == zmq.EAGAIN):
