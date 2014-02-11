@@ -11,6 +11,7 @@ import threading
 import string
 from random import randrange
 from random import choice
+from ctypes import create_string_buffer
 
 sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
 
@@ -22,6 +23,9 @@ CONNECTION_TIMEOUT=5
 closingMessages={}
 
 badUnicode=re.compile(u'[\ud800-\udfff]')
+
+msg_types = ["INSERT", "DELETE", "FIND", "RANGE"]
+error_msg = "Usage:\n\t<INSERT,i,j,w>\n\t<DELETE,i,j>\n\t<FIND,i,j>\n\t<RANGE,i1,j1,i2,j2>"
 
 logf=open('handler.log','wb')
 #logf=open('/dev/null','wb')
@@ -41,7 +45,7 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
     context = zmq.Context.instance()
 
     cmds = context.socket(zmq.SUB)
-    be = context.socket(zmq.SUB)
+    be = context.socket(zmq.PULL)
     relay = context.socket(zmq.PUSH)
     be_push = context.socket(zmq.PUSH)
 
@@ -59,12 +63,6 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
     liveness = 3
     last_ping = datetime.datetime.now()
 
-    # Subscibe to measurements published
-    be.setsockopt(zmq.SUBSCRIBE, "m_lat_f" + conn_id)
-    be.setsockopt(zmq.SUBSCRIBE, "data_f" + conn_id)
-    be.setsockopt(zmq.SUBSCRIBE, "start_f" + conn_id)
-    be.setsockopt(zmq.SUBSCRIBE, "stop_f" + conn_id)
-
     print "Starting thread for connection %s" %(conn_id)
 
     while True:
@@ -73,32 +71,25 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
         if cmds in socks:
             msg_parts = cmds.recv_multipart()
             cmd = msg_parts[1]
-            val = msg_parts[2]
-            # print "worker recv from handler: " + str(msg_parts)
-            if (cmd == "sub"):
-              # be.setsockopt_string(zmq.SUBSCRIBE, val.decode("ascii"))
-              be.setsockopt(zmq.SUBSCRIBE, val)
-              print "connection %s subscribed to '%s'" %(conn_id, val)
+            val = msg_parts[2:]
 
-            elif (cmd == "unsub"):
-              be.setsockopt(zmq.UNSUBSCRIBE, val)
-              print "connection %s unsubscribed '%s'" %(conn_id, val)
+            print "worker received from handler: " + str(msg_parts)
+
+            if (cmd in msg_types):
+              send_parts = [cmd] + val
+              be_push.send_multipart(map(create_string_buffer, send_parts))
+
+            # if (cmd == "INSERT"):
+            #   be_push.send_multipart([0, int(val[0]), int(val[1]), float(val[2])])
+            # elif (cmd == "DELETE"):
+            #   be_push.send_multipart([1] + map(int, val))
+            # elif (cmd == "FIND"):
+            #   be_push.send_multipart([2] + map(int, val))
+            # elif (cmd == "RANGE"):
+            #   be_push.send_multipart([3] + map(int, val))
 
             elif (cmd == "pong"):
               liveness = 3
-
-            # For measurements
-            elif (cmd == "m_lat_w"):
-                relay.send_multipart(ident + ["pub", "m_lat_w"])
-            elif (cmd == "m_down_w"):
-                reply = ''.join(choice(string.ascii_uppercase + string.digits)
-                    for x in range(int(val)))
-                relay.send_multipart(ident + ["pub", "start_w"])
-                relay.send_multipart(ident + ["pub", "data_w", reply])
-                relay.send_multipart(ident + ["pub", "stop_w"])
-              
-            elif (cmd == "m_lat_f" or cmd == "m_down_f"):
-              be_push.send_multipart([cmd, conn_id, val])
 
             elif (cmd == "close"):
               # Client closed WS, exit thread
@@ -109,6 +100,7 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
         elif (datetime.datetime.now() >
                 last_ping + datetime.timedelta(seconds=5)):
             liveness = liveness - 1
+
             # No response to pings for 3 times, assume client is dead
             if (liveness <= 0):
                 print "connection %s had not respond to 3 pings; it is dead" %(conn_id)
@@ -122,8 +114,8 @@ def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
 
         if be in socks:
             msg_parts = be.recv_multipart()
-            # print "worker recv from BE: " + str(msg_parts)
-            relay.send_multipart(ident + ["pub"] + msg_parts)
+            print "worker recv from BE: " + str(msg_parts)
+            relay.send_multipart(ident + ["rep"] + msg_parts)
 
     # Close sockets
     cmds.close()
@@ -177,9 +169,9 @@ while True:
             conn.send(msg_parts[0], msg_parts[1],
                   handler.websocket_response("", wsutil.OP_PING))
 
-        elif (w_type == "pub"):
+        elif (w_type == "rep"):
             conn.send(msg_parts[0], msg_parts[1],
-                  handler.websocket_response(json.dumps(msg_parts[3:])))
+                  handler.websocket_response(str(msg_parts[3])))
 
         elif (w_type == "close"):
             conn.send(msg_parts[0], msg_parts[1],
@@ -276,42 +268,31 @@ while True:
                     #if (0xd800 <= ord(c) <= 0xdfff):
                         #raise UnicodeError('Surrogates not allowed')
 
-                # print "handler recv: " + wsdata
-                clnt_cmds = wsdata.split(':')
+                print "handler received WS data: " + wsdata
+
+                clnt_cmds = wsdata.split(',')
                 if (len(clnt_cmds) < 2):
+                    conn.reply_websocket(req, error_msg, opcode);
                     continue
 
                 cmd = clnt_cmds[0]
-                val = clnt_cmds[1]
+                val = clnt_cmds[1:]
 
-                # Subscribe to a topic
-                if (cmd == "sub"):
-                    cmds.send_multipart([req.conn_id, cmd, val])
-                    conn.reply_websocket(req, "Subscribed to '%s'" %(val), opcode)
+                if (cmd in msg_types):
+                    cmds.send_multipart([req.conn_id, cmd] + val)
 
-                # Unsubscribe a topic
-                elif (cmd == "unsub"):
-                    cmds.send_multipart([req.conn_id, cmd, val])
-                    conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
+                # # Subscribe to a topic
+                # if (cmd == "sub"):
+                #     cmds.send_multipart([req.conn_id, cmd, val])
+                #     conn.reply_websocket(req, "Subscribed to '%s'" %(val), opcode)
 
-                # Measure roundtrip latency
-                # Measure download bandwidth
-                # Measure upload bandwidth
-                elif (cmd == "m_lat_h"):
-                    conn.reply_websocket(req, json.dumps(["m_lat_h"]), opcode)
-                elif (cmd == "m_down_h"):
-                    reply = ''.join(choice(string.ascii_uppercase + string.digits)
-                        for x in range(int(val)))
-                    conn.reply_websocket(req, json.dumps(["start_h"]), opcode)
-                    conn.reply_websocket(req, json.dumps(["data_h", reply]), opcode)
-                    conn.reply_websocket(req, json.dumps(["stop_h"]), opcode)
-                    
- 
-                elif (cmd.startswith("m_lat") or cmd.startswith("m_down")):
-                    cmds.send_multipart([req.conn_id, cmd, val])
+                # # Unsubscribe a topic
+                # elif (cmd == "unsub"):
+                #     cmds.send_multipart([req.conn_id, cmd, val])
+                #     conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
 
                 else:
-                    conn.reply_websocket(req, "Usage: '[sub|unsub]:TOPIC'", opcode);
+                    conn.reply_websocket(req, error_msg, opcode);
                 continue
             except UnicodeError:
                 abortConnection(conn,req,'invalid UTF', wsutil.CLOSE_BAD_DATA)

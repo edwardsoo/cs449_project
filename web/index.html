@@ -3,43 +3,71 @@
 <script src="jquery-2.1.0.min.js"></script>
 <script type="text/javascript">
 
-FULL = 0;
-WORKER = 1;
-HANDLER = 2;
-var typename = [];
-typename[FULL] = "full";
-typename[WORKER] = "worker";
-typename[HANDLER] = "handler";
+function bindOps(ws, ws_logs) {
+  $('#insert').unbind();
+  $('#find').unbind();
+  $('#delete').unbind();
+  $('#range').unbind();
 
-function bindSubUnsub(ws, ws_logs) {
-  $('#subscribe').unbind();
-  $('#unsubscribe').unbind();
-  $('#close').unbind();
-
-  $('#subscribe').click(function() {
-    var topic = $('#topic').val();
-    if (topic && ws.readyState == WebSocket.OPEN) {
-      var msg  = "sub:"+topic;
+  $('#insert').click(function() {
+    var i,j,w;
+    i = $('#insert_i').val();
+    j = $('#insert_j').val();
+    w = $('#insert_w').val();
+    if (i && j && w && ws.readyState == WebSocket.OPEN) {
+      var msg  = "INSERT,"+i+","+j+","+w;
       ws.send(msg);
     } else if (ws.readyState == WebSocket.OPEN) {
-      ws_logs.val(ws_logs.val() + "Please enter a topic\n");
+      ws_logs.val(ws_logs.val() + "Missing argument(s)\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     } else {
       ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
   });
-
-  $('#unsubscribe').click(function() {
-    var topic = $('#untopic').val();
-    if (topic && ws.readyState == WebSocket.OPEN) {
-      var msg = "unsub:"+topic;
+  $('#delete').click(function() {
+    var i,j;
+    i = $('#delete_i').val();
+    j = $('#delete_j').val();
+    if (i && j && ws.readyState == WebSocket.OPEN) {
+      var msg  = "DELETE,"+i+","+j;
       ws.send(msg);
     } else if (ws.readyState == WebSocket.OPEN) {
-      ws_logs.val(ws_logs.val() + "Please enter a topic\n");
+      ws_logs.val(ws_logs.val() + "Missing argument(s)\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     } else {
-      console.debug(ws.readyState);
+      ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    }
+  });
+  $('#find').click(function() {
+    var i,j;
+    i = $('#find_i').val();
+    j = $('#find_j').val();
+    if (i && j && ws.readyState == WebSocket.OPEN) {
+      var msg  = "FIND,"+i+","+j;
+      ws.send(msg);
+    } else if (ws.readyState == WebSocket.OPEN) {
+      ws_logs.val(ws_logs.val() + "Missing argument(s)\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    } else {
+      ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    }
+  });
+  $('#range').click(function() {
+    var i1,j1,i2,j2;
+    i1 = $('#range_i1').val();
+    j1 = $('#range_j1').val();
+    i2 = $('#range_i2').val();
+    j2 = $('#range_j2').val();
+    if (i1 && j1 && j2 && j2 && ws.readyState == WebSocket.OPEN) {
+      var msg  = "RANGE,"+i1+","+j1+","+i2+","+j2;
+      ws.send(msg);
+    } else if (ws.readyState == WebSocket.OPEN) {
+      ws_logs.val(ws_logs.val() + "Missing argument(s)\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    } else {
       ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
@@ -49,6 +77,23 @@ function bindSubUnsub(ws, ws_logs) {
     ws.close();
     $('#if').hide();
     $('#start_ws').show();
+  });
+}
+
+function bindSendMessage(ws, ws_logs) {
+  $('#send').unbind();
+
+  $('#send').click(function() {
+    var message = $('#message').val();
+    if (message && ws.readyState == WebSocket.OPEN) {
+      ws.send(message);
+    } else if (ws.readyState == WebSocket.OPEN) {
+      ws_logs.val(ws_logs.val() + "Please enter a message to send\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    } else {
+      ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
+      ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+    }
   });
 }
 
@@ -73,8 +118,8 @@ function WebSocketSub()
 
       // Show application interface
       $('#if').show();
-      bindSubUnsub(ws, ws_logs);
-
+      bindOps(ws, ws_logs);
+      bindSendMessage(ws, ws_logs);
     };
 
     ws.onmessage = function(event) {
@@ -93,124 +138,6 @@ function WebSocketSub()
     ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
   }
 }
-
-function m_down(type, num, size, cb) {
-  var ws = new WebSocket("ws://localhost:6767/sub");
-  var start, stop;
-  var tts = []; // transmission times
-  var tps = []; // throughput in MB/s
-  var m = 1;
-  var pf = type == FULL ? "_f" : (type == WORKER ? "_w" : "_h");
-
-  var onmsg_cb = function(e) {
-    var msg = JSON.parse(e.data);
-    if (msg[0].match(new RegExp("^start"+pf))) {
-      start = window.performance.now();
-    } else if (msg[0].match(new RegExp("^stop"+pf))) {
-      stop = window.performance.now();
-      tts.push(stop - start);
-      tps.push(size/((stop - start)*128))
-      if (m < num) {
-        ws.send("m_down"+pf+":"+size)
-        m++;
-      } else {
-        var ws_logs = $('#ws_logs');
-        var sum = tps.reduce(function(a,b) {return a+b;});
-        ws_logs.val("Transmission times (ms): " + JSON.stringify(tts));
-        ws_logs.val(ws_logs.val() + "\nThroughputs (Mbps): " + JSON.stringify(tps));
-        ws_logs.val(ws_logs.val() + "\nAverage throughput = " + (sum/num) + "Mbps");
-        if (cb) {
-          cb(tps, type, size);
-        }
-        ws.close();
-      }
-    } else if (!msg[0].match(new RegExp("^data"+pf))){
-      console.log("received unexpected msg: " + e.data);
-      ws.close();
-    }
-  };
-
-  ws.onopen = function() {
-    ws.onmessage= onmsg_cb;
-    // Give Sub socket time to init
-    setTimeout(function() {
-      ws.send("m_down"+pf+":"+size)
-    }, 1000);
-  };
-
-  return 0;
-}
-
-function m_lat(type, num, cb) {
-  var ws = new WebSocket("ws://localhost:6767/sub");
-  var start;
-  // round trip times
-  var rtts = [];
-  var m = 1;
-  var cmd = type == FULL ? "m_lat_f" : (type == WORKER ? "m_lat_w" : "m_lat_h");
-
-  var measure = function() {
-    start = window.performance.now();
-    ws.send(cmd + ":0");
-  };
-
-  var onmsg_cb = function(e) {
-    var stop = window.performance.now()
-    var msg = JSON.parse(e.data);
-    rtts.push(stop - start);    
-    if (m < num && msg[0].match(new RegExp("^"+cmd))) {
-      m++;
-      measure();
-    } else if (m >= num) {
-      var sum = rtts.reduce(function(a, b) { return a + b });
-      var avg = sum/num;
-      var ws_logs = $('#ws_logs');
-      ws_logs.val("Round trip times (ms): " + JSON.stringify(rtts));
-      ws_logs.val(ws_logs.val() + "\nAverage RTT = " + avg + "ms");
-
-      if (cb) {
-        cb(rtts, type);
-      }
-      ws.close();
-    } else {
-      console.log("received unexpected msg: " + e.data);
-      ws.close();
-    }
-  };
-
-  ws.onopen = function() {
-    ws.onmessage = onmsg_cb;
-    // Give Sub socket time to init
-    setTimeout(function() {
-        measure();
-    }, 1000);
-  }
-
-  return 0;
-}
-
-function measure_all(num, type) {
-  var m_lat_cb = function(rtts, type) {
-    var sum = rtts.reduce(function(a, b) { return a + b });
-    var avg = sum/num;
-    console.log("Type " + typename[type] + " avg RTT:");
-    console.log(avg);
-  };
-  var m_down_cb = function(tps, type, size) {
-    var sum = tps.reduce(function(a, b) { return a + b });
-    var avg = sum/num;
-    console.log("Type " + typename[type] + " avg throughput (msg size " + size + ") :");
-    console.log(avg);
-  }
-
-  m_lat(type, num, m_lat_cb);
-
-  for (var i = 7; i <= 16; i++) {
-    var size = Math.pow(2,i);
-    m_down(type, num, size, m_down_cb);
-  }
-}
-
 </script>
 </head>
 
@@ -218,19 +145,56 @@ function measure_all(num, type) {
 <div id="ws">
   <a id="start_ws" href="javascript:WebSocketSub()"> Run WebSocket </a>
   <br>
-  <textarea cols="80" rows="10" id="ws_logs">
+  <textarea cols="120" rows="10" id="ws_logs">
   </textarea>
   <br>
   <div id='if' style="display:none">
 
-  <label for="topic">Topic</label>
-  <input id="topic" type="text"/>
-  <input id="subscribe" type="submit" value="Subscribe"/>
-
+  <label for="insert_i">i</label>
+  <input id="insert_i" type="text"/>
+  <label for="insert_j">j</label>
+  <input id="insert_j" type="text"/>
+  <label for="insert_w">w</label>
+  <input id="insert_w" type="text"/>
   <br>
-  <label for="untopic">Topic</label>
-  <input id="untopic" type="text"/>
-  <input id="unsubscribe" type="submit" value="Unsubscribe"/>
+  <input id="insert" type="submit" value="Insert"/>
+  <br>
+  <br>
+
+  <label for="delete_i">i</label>
+  <input id="delete_i" type="text"/>
+  <label for="delete_j">j</label>
+  <input id="delete_j" type="text"/>
+  <br>
+  <input id="delete" type="submit" value="Delete"/>
+  <br>
+  <br>
+
+  <label for="find_i">i</label>
+  <input id="find_i" type="text"/>
+  <label for="find_j">j</label>
+  <input id="find_j" type="text"/>
+  <br>
+  <input id="find" type="submit" value="Find"/>
+  <br>
+  <br>
+
+  <label for="range_i1">i1</label>
+  <input id="range_i1" type="text"/>
+  <label for="range_j1">j1</label>
+  <input id="range_j1" type="text"/>
+  <label for="range_i2">i2</label>
+  <input id="range_i2" type="text"/>
+  <label for="range_j2">j2</label>
+  <input id="range_j2" type="text"/>
+  <br>
+  <input id="range" type="submit" value="Range"/>
+  <br>
+  <br>
+
+  <label for="message">Message</label>
+  <input id="message" type="text"/>
+  <input id="send" type="submit" value="Send"/>
 
   <br>
   <label for="close">Close connection</label>
