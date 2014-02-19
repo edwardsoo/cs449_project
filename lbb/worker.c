@@ -38,7 +38,7 @@ int main(void) {
       // Msg format: [WORKER ID] -> [] -> [CLIENT_ID] -> [] -> [REP DATA]
       zmsg_pushstr(msg, "OK");
       zmsg_wrap(msg, zlist_pop(clients));
-      zmsg_pushstr(msg, "");
+      zmsg_push(msg, zframe_new_empty());
       zmsg_send (&msg, broker);
       printf("Worker replies\n");
       wnd++;
@@ -47,10 +47,10 @@ int main(void) {
     // Non-blocking receive
     void *which = zpoller_wait (poller, 0);
 
-    
     if (zpoller_expired (poller) == false && which == broker) {
       // Msg format: [] -> [CLIENT ID] -> [] -> [REQ DATA]
       msg = zmsg_recv (broker);
+      zmsg_dump(msg);
       wnd--;
       printf("Worker got request\n");
 

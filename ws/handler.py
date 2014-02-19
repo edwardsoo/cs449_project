@@ -75,7 +75,7 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
 
             if (cmd in msg_types):
               print "worker received from handler: " + str(msg_parts)
-              send_parts = ['', cmd] + val
+              send_parts = [cmd] + val
               # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
               broker.send_multipart(map(create_string_buffer, send_parts))
 
