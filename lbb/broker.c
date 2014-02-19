@@ -9,7 +9,7 @@ int main (void)
   zframe_t *identity;
   void *frontend = zsocket_new (ctx, ZMQ_ROUTER);
   void *backend = zsocket_new (ctx, ZMQ_ROUTER);
-  zsocket_bind (frontend, "ipc://frontend.ipc");
+  zsocket_bind (frontend, "tcp://127.0.0.1:9990");
   zsocket_bind (backend, "ipc://backend.ipc");
 
   // Queue of available workers
@@ -51,6 +51,7 @@ int main (void)
         zmsg_destroy (&msg);
       } else {
         // Msg format: [CLIENT ID] -> [] -> [REP]
+        zmsg_dump(msg);
         zmsg_send (&msg, frontend);
       }
     }

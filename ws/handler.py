@@ -31,6 +31,10 @@ logf=open('handler.log','wb')
 #logf=open('/dev/null','wb')
 #logf=sys.stdout
 
+ws_req_url = "inproc://ws_req"
+ws_rep_url = "inproc://ws_rep"
+broker_url = "tcp://127.0.0.1:9990"
+
 def abortConnection(conn,req,reason='none',code=None):
     #print 'abort',conn,req,reason,code
     if code is not None:
@@ -41,109 +45,99 @@ def abortConnection(conn,req,reason='none',code=None):
         conn.reply(req,'')
     print >>logf,'abort',code,reason
 
-def worker_routine(sender, conn_id, cmds_url, relay_url, pub_url, push_url):
+def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
     context = zmq.Context.instance()
+    max_live = 15
+    ws_req = context.socket(zmq.SUB)
+    ws_rep = context.socket(zmq.PUSH)
+    broker = context.socket(zmq.DEALER)
 
-    cmds = context.socket(zmq.SUB)
-    be = context.socket(zmq.PULL)
-    relay = context.socket(zmq.PUSH)
-    be_push = context.socket(zmq.PUSH)
-
-    cmds.connect(cmds_url)
-    relay.connect(relay_url)
-    be.connect(pub_url)
-    be_push.connect(push_url)
+    ws_req.connect(ws_req_url)
+    ws_rep.connect(ws_rep_url)
+    broker.connect(broker_url)
     
-    cmds.setsockopt(zmq.SUBSCRIBE, conn_id)
+    ws_req.setsockopt(zmq.SUBSCRIBE, conn_id)
     poller = zmq.Poller()
-    poller.register(cmds)
-    poller.register(be)
+    poller.register(broker)
+    poller.register(ws_req)
 
     ident = [sender, conn_id]
-    liveness = 3
+    liveness = max_live
     last_ping = datetime.datetime.now()
 
     print "Starting thread for connection %s" %(conn_id)
 
     while True:
-        socks = dict(poller.poll(timeout = 5000))
-
-        if cmds in socks:
-            msg_parts = cmds.recv_multipart()
+        try:
+            msg_parts = ws_req.recv_multipart(zmq.NOBLOCK)
             cmd = msg_parts[1]
             val = msg_parts[2:]
 
-            print "worker received from handler: " + str(msg_parts)
-
             if (cmd in msg_types):
-              send_parts = [cmd] + val
-              be_push.send_multipart(map(create_string_buffer, send_parts))
-
-            # if (cmd == "INSERT"):
-            #   be_push.send_multipart([0, int(val[0]), int(val[1]), float(val[2])])
-            # elif (cmd == "DELETE"):
-            #   be_push.send_multipart([1] + map(int, val))
-            # elif (cmd == "FIND"):
-            #   be_push.send_multipart([2] + map(int, val))
-            # elif (cmd == "RANGE"):
-            #   be_push.send_multipart([3] + map(int, val))
+              print "worker received from handler: " + str(msg_parts)
+              send_parts = ['', cmd] + val
+              # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
+              broker.send_multipart(map(create_string_buffer, send_parts))
 
             elif (cmd == "pong"):
-              liveness = 3
+              liveness = max_live
 
             elif (cmd == "close"):
               # Client closed WS, exit thread
               print "Client requested WS close on connection %s\n" %(conn_id)
               break;
+        except zmq.ZMQError as e:
+            if e.errno != zmq.EAGAIN:
+                print e
+                break
 
-        # Poll timeout, no input from client
-        elif (datetime.datetime.now() >
-                last_ping + datetime.timedelta(seconds=5)):
-            liveness = liveness - 1
+            # Poll timeout, no input from client
+            if (datetime.datetime.now() >
+                    last_ping + datetime.timedelta(seconds=5)):
+                liveness = liveness - 1
 
-            # No response to pings for 3 times, assume client is dead
-            if (liveness <= 0):
-                print "connection %s had not respond to 3 pings; it is dead" %(conn_id)
-                relay.send_multipart(ident + ["close"])
-                break;
+                # No response to pings for 3 times, assume client is dead
+                if (liveness <= 0):
+                    print "connection %s had not respond to in %d seconds; it is dead" %(conn_id, max_live)
+                    ws_rep.send_multipart(ident + ["close"])
+                    break;
 
-            # Ping WS client
-            # print "Ping connection %s" %(conn_id)
-            relay.send_multipart(ident + ["ping"])
-            last_ping = datetime.datetime.now()
+                # Ping WS client
+                # print "Ping connection %s" %(conn_id)
+                ws_rep.send_multipart(ident + ["ping"])
+                last_ping = datetime.datetime.now()
 
-        if be in socks:
-            msg_parts = be.recv_multipart()
-            print "worker recv from BE: " + str(msg_parts)
-            relay.send_multipart(ident + ["rep"] + msg_parts)
+        try:
+            msg_parts = broker.recv_multipart(zmq.NOBLOCK)
+            print "worker got rep from broker: " + str(msg_parts)
+            ws_rep.send_multipart(ident + ["rep"] + msg_parts)
+        except zmq.ZMQError as e:
+            if e.errno != zmq.EAGAIN:
+                print e
+                break
 
     # Close sockets
-    cmds.close()
-    relay.close()
-    be.close()
+    ws_req.close()
+    ws_rep.close()
+    broker.close()
 
 
-
-cmds_url = "inproc://commands"
-relay_url = "inproc://relay"
-be_url = "tcp://127.0.0.1:9990"
-be_push_url = "tcp://127.0.0.1:9991"
 
 context = zmq.Context.instance()
 sub = context.socket(zmq.SUB)
-sub.connect(be_url);
+sub.connect(broker_url)
 sub.setsockopt_string(zmq.SUBSCRIBE, "100:".decode('ascii'))
 
 # Publish client subscription to worker threads
-cmds = context.socket(zmq.PUB);
-cmds.bind(cmds_url)
+ws_req = context.socket(zmq.PUB);
+ws_req.bind(ws_req_url)
 
 # Pull backend publishment from worker threads
-relay = context.socket(zmq.PULL);
-relay.bind(relay_url)
+ws_rep = context.socket(zmq.PULL);
+ws_rep.bind(ws_rep_url)
 
 poller = zmq.Poller();
-poller.register(relay);
+poller.register(ws_rep);
 poller.register(conn.reqs);
 
 while True:
@@ -160,8 +154,8 @@ while True:
         sys.exit()
 
     # Route worker thread messages back to WS client using conn_id & sender_id
-    if relay in socks:
-        msg_parts = relay.recv_multipart()
+    if ws_rep in socks:
+        msg_parts = ws_rep.recv_multipart()
         # print msg_parts
         w_type = msg_parts[2]
 
@@ -198,7 +192,7 @@ while True:
 
             # Spawn a worker thread to handler client subscriptions
             thread = threading.Thread(target=worker_routine,
-                args=(req.sender, req.conn_id, cmds_url, relay_url, be_url, be_push_url))
+                args=(req.sender, req.conn_id, ws_req_url, ws_rep_url, broker_url))
             thread.start()
             conn.reply_websocket(req, "this is a ping from server", wsutil.OP_PING)
             # conn.reply_websocket(req, "this is a pong from server", wsutil.OP_PONG)
@@ -229,7 +223,7 @@ while True:
             continue
     
         if opcode == wsutil.OP_CLOSE:
-            cmds.send_multipart([req.conn_id, "close", ''])
+            ws_req.send_multipart([req.conn_id, "close", ''])
             if req.conn_id in closingMessages:
                 del closingMessages[req.conn_id]
                 conn.reply(req,'')
@@ -253,7 +247,7 @@ while True:
     
             if opcode == wsutil.OP_PONG:
                 # Keep worker alive
-                cmds.send_multipart([req.conn_id, "pong", ""])
+                ws_req.send_multipart([req.conn_id, "pong", ""])
 
             continue
     
@@ -268,27 +262,27 @@ while True:
                     #if (0xd800 <= ord(c) <= 0xdfff):
                         #raise UnicodeError('Surrogates not allowed')
 
-                print "handler received WS data: " + wsdata
+                # print "handler received WS data: " + wsdata
 
-                clnt_cmds = wsdata.split(',')
-                if (len(clnt_cmds) < 2):
+                clnt_ws_req = wsdata.split(',')
+                if (len(clnt_ws_req) < 2):
                     conn.reply_websocket(req, error_msg, opcode);
                     continue
 
-                cmd = clnt_cmds[0]
-                val = clnt_cmds[1:]
+                cmd = clnt_ws_req[0]
+                val = clnt_ws_req[1:]
 
                 if (cmd in msg_types):
-                    cmds.send_multipart([req.conn_id, cmd] + val)
+                    ws_req.send_multipart([req.conn_id, cmd] + val)
 
                 # # Subscribe to a topic
                 # if (cmd == "sub"):
-                #     cmds.send_multipart([req.conn_id, cmd, val])
+                #     ws_req.send_multipart([req.conn_id, cmd, val])
                 #     conn.reply_websocket(req, "Subscribed to '%s'" %(val), opcode)
 
                 # # Unsubscribe a topic
                 # elif (cmd == "unsub"):
-                #     cmds.send_multipart([req.conn_id, cmd, val])
+                #     ws_req.send_multipart([req.conn_id, cmd, val])
                 #     conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
 
                 else:
