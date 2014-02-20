@@ -8,6 +8,7 @@ function bindOps(ws_logs) {
   $('#find').unbind();
   $('#delete').unbind();
   $('#range').unbind();
+  $('#file').unbind();
 
   $('#insert').click(function() {
     var i,j,w;
@@ -71,6 +72,39 @@ function bindOps(ws_logs) {
       ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
       ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
     }
+  });
+
+  $('#file').change(function(evt) {
+    // console.debug(evt.target.files[0]);
+    var f = evt.target.files[0];
+    var reader = new FileReader();
+    reader.onload = function(prog) {
+      var content = prog.target.result;
+      var ops = content.split("\n");
+      var i;
+      for (i = 0; i < ops.length; i++) {
+        var args = ops[i].trim().split(",");
+        if (args.length) {
+          var opstr = args[0].toUpperCase();
+          var opcode = $.inArray(opstr, ["INSERT", "DELETE", "FIND", "RANGE"])
+          var num_args = [4,3,3,5];
+          if (opcode > -1 && args.length == num_args[opcode]) {
+            if (ws.readyState == WebSocket.OPEN) {
+              var msg = ops[i].toUpperCase();
+              // console.debug(msg);
+              ws.send(msg);
+            } else {
+              ws_logs.val(ws_logs.val() + "WebSocket connection error\n");
+              ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
+            }
+            continue;
+          }
+        }
+        console.log("Invalid operation on line " + i + ": " + ops[i]);
+      }
+    };
+    reader.readAsText(f);
+    evt.preventDefault();
   });
 
   $('#close').click(function() {
@@ -140,6 +174,7 @@ function WebSocketSub()
     ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
   }
 }
+
 </script>
 </head>
 
@@ -148,14 +183,12 @@ function WebSocketSub()
   <a id="start_ws" href="javascript:WebSocketSub()"> Run WebSocket </a>
   <br>
   <div id='if' style="display:none">
-
   <label for="insert_i">i</label>
   <input id="insert_i" type="text"/>
   <label for="insert_j">j</label>
   <input id="insert_j" type="text"/>
   <label for="insert_w">w</label>
   <input id="insert_w" type="text"/>
-  <br>
   <input id="insert" type="submit" value="Insert"/>
   <br>
   <br>
@@ -164,7 +197,6 @@ function WebSocketSub()
   <input id="delete_i" type="text"/>
   <label for="delete_j">j</label>
   <input id="delete_j" type="text"/>
-  <br>
   <input id="delete" type="submit" value="Delete"/>
   <br>
   <br>
@@ -173,7 +205,6 @@ function WebSocketSub()
   <input id="find_i" type="text"/>
   <label for="find_j">j</label>
   <input id="find_j" type="text"/>
-  <br>
   <input id="find" type="submit" value="Find"/>
   <br>
   <br>
@@ -186,11 +217,14 @@ function WebSocketSub()
   <input id="range_i2" type="text"/>
   <label for="range_j2">j2</label>
   <input id="range_j2" type="text"/>
-  <br>
   <input id="range" type="submit" value="Range"/>
   <br>
   <br>
 
+  <label for="file">Load file</label>
+  <input id="file" type="file" name="file"/>
+  <br>
+  
   <label for="message">Message</label>
   <input id="message" type="text"/>
   <input id="send" type="submit" value="Send"/>
@@ -199,6 +233,7 @@ function WebSocketSub()
   <label for="close">Close connection</label>
   <input id="close" type="submit" value="Close"/>
   </div>
+
   <br>
   <textarea cols="120" rows="10" id="ws_logs">
   </textarea>
