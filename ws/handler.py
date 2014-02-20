@@ -47,7 +47,7 @@ def abortConnection(conn,req,reason='none',code=None):
 
 def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
     context = zmq.Context.instance()
-    max_live = 15
+    max_live = 3
     ws_req = context.socket(zmq.SUB)
     ws_rep = context.socket(zmq.PUSH)
     broker = context.socket(zmq.DEALER)
@@ -57,9 +57,10 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
     broker.connect(broker_url)
     
     ws_req.setsockopt(zmq.SUBSCRIBE, conn_id)
+    ws_req.setsockopt(zmq.SUBSCRIBE, "die")
     poller = zmq.Poller()
-    poller.register(broker)
-    poller.register(ws_req)
+    poller.register(broker, zmq.POLLIN)
+    poller.register(ws_req, zmq.POLLIN)
 
     ident = [sender, conn_id]
     liveness = max_live
@@ -68,8 +69,12 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
     print "Starting thread for connection %s" %(conn_id)
 
     while True:
-        try:
+        socks = dict(poller.poll(timeout = 5000))
+        if ws_req in socks:
             msg_parts = ws_req.recv_multipart(zmq.NOBLOCK)
+            if (msg_parts[0] == "die"):
+              break
+
             cmd = msg_parts[1]
             val = msg_parts[2:]
 
@@ -85,36 +90,28 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
             elif (cmd == "close"):
               # Client closed WS, exit thread
               print "Client requested WS close on connection %s\n" %(conn_id)
-              break;
-        except zmq.ZMQError as e:
-            if e.errno != zmq.EAGAIN:
-                print e
+              break
+
+        # Poll timeout, no input from client
+        elif (datetime.datetime.now() >
+                    last_ping + datetime.timedelta(seconds=1)):
+            liveness = liveness - 1
+
+            # No response to pings, assume client is dead
+            if (liveness <= 0):
+                print "connection %s had not respond to pings; it is dead" %(conn_id)
+                ws_rep.send_multipart(ident + ["close"])
                 break
 
-            # Poll timeout, no input from client
-            if (datetime.datetime.now() >
-                    last_ping + datetime.timedelta(seconds=5)):
-                liveness = liveness - 1
+            # Ping WS client
+            # print "Ping connection %s" %(conn_id)
+            ws_rep.send_multipart(ident + ["ping"])
+            last_ping = datetime.datetime.now()
 
-                # No response to pings for 3 times, assume client is dead
-                if (liveness <= 0):
-                    print "connection %s had not respond to in %d seconds; it is dead" %(conn_id, max_live)
-                    ws_rep.send_multipart(ident + ["close"])
-                    break;
-
-                # Ping WS client
-                # print "Ping connection %s" %(conn_id)
-                ws_rep.send_multipart(ident + ["ping"])
-                last_ping = datetime.datetime.now()
-
-        try:
+        if broker in socks:
             msg_parts = broker.recv_multipart(zmq.NOBLOCK)
             print "worker got rep from broker: " + str(msg_parts)
             ws_rep.send_multipart(ident + ["rep"] + msg_parts)
-        except zmq.ZMQError as e:
-            if e.errno != zmq.EAGAIN:
-                print e
-                break
 
     # Close sockets
     ws_req.close()
@@ -151,6 +148,7 @@ while True:
         socks = dict(poller.poll())
     except:
         print "FAILED RECV"
+        ws_req.send("die")
         sys.exit()
 
     # Route worker thread messages back to WS client using conn_id & sender_id
@@ -274,16 +272,6 @@ while True:
 
                 if (cmd in msg_types):
                     ws_req.send_multipart([req.conn_id, cmd] + val)
-
-                # # Subscribe to a topic
-                # if (cmd == "sub"):
-                #     ws_req.send_multipart([req.conn_id, cmd, val])
-                #     conn.reply_websocket(req, "Subscribed to '%s'" %(val), opcode)
-
-                # # Unsubscribe a topic
-                # elif (cmd == "unsub"):
-                #     ws_req.send_multipart([req.conn_id, cmd, val])
-                #     conn.reply_websocket(req, "Unsubscribed '%s'" %(val), opcode)
 
                 else:
                     conn.reply_websocket(req, error_msg, opcode);
