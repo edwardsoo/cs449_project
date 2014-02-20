@@ -107,7 +107,7 @@ function bindOps(ws_logs) {
         console.log("Invalid operation on line " + i + ": " + ops[i]);
       }
       console.log(delta_list);
-      sendDeltaTimeOp(delta_list.reverse());
+      sendDeltaTimeOp(delta_list.reverse(), ws_logs);
     };
     reader.readAsText(f);
     evt.preventDefault();
@@ -120,7 +120,7 @@ function bindOps(ws_logs) {
   });
 }
 
-function sendDeltaTimeOp(list) {
+function sendDeltaTimeOp(list, ws_logs) {
   if (list.length) {
     var entry = list.pop();
     window.setTimeout(function() {

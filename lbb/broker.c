@@ -10,7 +10,7 @@ int main (void)
   void *frontend = zsocket_new (ctx, ZMQ_ROUTER);
   void *backend = zsocket_new (ctx, ZMQ_ROUTER);
   zsocket_bind (frontend, "tcp://127.0.0.1:9990");
-  zsocket_bind (backend, "ipc://backend.ipc");
+  zsocket_bind (backend, "tcp://127.0.0.1:5555");
 
   // Queue of available workers
   zlist_t *workers = zlist_new ();
@@ -34,7 +34,6 @@ int main (void)
       // Use worker identity for load-balancing
       // Msg format: [CLIENT ID] -> [] -> [...]
       zmsg_t *msg = zmsg_recv (backend);
-      printf("Broker: got worker ready for work\n");
 
       // Interrupted
       if (!msg)
@@ -43,6 +42,7 @@ int main (void)
       // Save worker ID on queue
       identity = zmsg_unwrap(msg);
       zlist_append (workers, identity);
+      zframe_print(identity, "Broker: received from worker ");
 
       // Forward message to client if it’s not a READY
       zframe_t *frame = zmsg_first (msg);
@@ -61,6 +61,9 @@ int main (void)
       zmsg_t *msg = zmsg_recv (frontend);
 
       if (msg) {
+        printf("Broker: received req from a client\n");
+        zmsg_dump(msg);
+
         // Route to first available worker
         identity = (zframe_t *) zlist_pop(workers);
         zmsg_wrap (msg, identity);
