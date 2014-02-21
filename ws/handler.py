@@ -11,7 +11,10 @@ import threading
 import string
 from random import randrange
 from random import choice
+from ctypes import c_char_p
 from ctypes import create_string_buffer
+from ctypes import c_uint
+from ctypes import c_double
 
 sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
 
@@ -76,14 +79,26 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
               break
 
             cmd = msg_parts[1]
-            val = msg_parts[2:]
 
             if (cmd in msg_types):
               print "worker received from handler: " + str(msg_parts)
-              send_parts = [cmd] + val
-              # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
-              broker.send_multipart(map(create_string_buffer, send_parts))
+              try:
+                # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
+                if (cmd == "INSERT"):
+                  num_args = map(c_uint, map(int, msg_parts[2:4]))
+                  num_args.append(c_double(float(msg_parts[4])))
+                else:
+                  num_args = map(c_uint, map(int, msg_parts[2:]))
 
+                broker.send('', zmq.SNDMORE)
+                broker.send(create_string_buffer(cmd), zmq.SNDMORE)
+                broker.send_multipart(num_args);
+
+              except Exception as e:
+                print e
+                print "Bad numeric arguments:" + str(msg_parts)
+
+              
             elif (cmd == "pong"):
               liveness = max_live
 
