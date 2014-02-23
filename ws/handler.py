@@ -9,6 +9,7 @@ import re
 import zmq
 import threading
 import string
+import struct
 from random import randrange
 from random import choice
 from ctypes import c_char_p
@@ -124,9 +125,32 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
             last_ping = datetime.datetime.now()
 
         if broker in socks:
-            msg_parts = broker.recv_multipart(zmq.NOBLOCK)
-            print "worker got rep from broker: " + str(msg_parts)
-            ws_rep.send_multipart(ident + ["rep"] + msg_parts)
+            try:
+              parts = broker.recv_multipart(zmq.NOBLOCK)
+              print "worker got rep from broker"
+              print parts
+              if (parts[1] not in msg_types):
+                print "Invalid rep: " + str(parts)
+                continue
+
+              if (parts[1] == "INSERT"):
+                vals = struct.unpack('=4idi', ''.join(parts[2:]))
+                names = ["success", "duplicate", "i", "j", "weight", "pid"]
+              elif (parts[1] == "DELETE"):
+                vals = struct.unpack('=4i', ''.join(parts[2:]))
+                names = ["success", "i", "j", "pid"]
+              elif (parts[1] == "FIND"):
+                vals = struct.unpack('=3idi', ''.join(parts[2:]))
+                names = ["success", "i", "j", "weight", "pid"]
+              else:
+                vals = struct.unpack('=4idi', ''.join(parts[2:]))
+                names = ["i1", "j1", "i2", "j2", "sum", "pid"]
+
+              key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
+              json_msg = json.dumps(key_vals)
+              ws_rep.send_multipart(ident + ["rep", json_msg])
+            except Exception as e:
+              print e
 
     # Close sockets
     ws_req.close()

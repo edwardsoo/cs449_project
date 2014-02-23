@@ -51,6 +51,7 @@ int main (void)
         zmsg_destroy (&msg);
       } else {
         // Msg format: [CLIENT ID] -> [] -> [REP]
+        printf("Broker: route rep to client\n");
         zmsg_dump(msg);
         zmsg_send (&msg, frontend);
       }
@@ -62,15 +63,15 @@ int main (void)
 
       if (msg) {
         printf("Broker: received req from a client\n");
-        zmsg_dump(msg);
 
         // Route to first available worker
         identity = (zframe_t *) zlist_pop(workers);
         zmsg_wrap (msg, identity);
+        zframe_print(identity, "Broker: route req to worker ");
+        zmsg_dump(msg);
 
         // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
         zmsg_send (&msg, backend);
-        printf("Broker: route req to a worker\n");
       }
     }
   }
