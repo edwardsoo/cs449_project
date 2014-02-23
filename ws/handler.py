@@ -17,27 +17,6 @@ from ctypes import create_string_buffer
 from ctypes import c_uint
 from ctypes import c_double
 
-sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
-
-conn = handler.Connection(sender_id, "tcp://127.0.0.1:9999",
-                          "tcp://127.0.0.1:9998")
-
-CONNECTION_TIMEOUT=5
-
-closingMessages={}
-
-badUnicode=re.compile(u'[\ud800-\udfff]')
-
-msg_types = ["INSERT", "DELETE", "FIND", "RANGE"]
-error_msg = "Usage:\n\t<INSERT,i,j,w>\n\t<DELETE,i,j>\n\t<FIND,i,j>\n\t<RANGE,i1,j1,i2,j2>"
-
-logf=open('handler.log','wb')
-#logf=open('/dev/null','wb')
-#logf=sys.stdout
-
-ws_req_url = "inproc://ws_req"
-ws_rep_url = "inproc://ws_rep"
-broker_url = "tcp://127.0.0.1:9990"
 
 def abortConnection(conn,req,reason='none',code=None):
     #print 'abort',conn,req,reason,code
@@ -49,22 +28,27 @@ def abortConnection(conn,req,reason='none',code=None):
         conn.reply(req,'')
     print >>logf,'abort',code,reason
 
-def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
+def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
     context = zmq.Context.instance()
     max_live = 3
     ws_req = context.socket(zmq.SUB)
     ws_rep = context.socket(zmq.PUSH)
     broker = context.socket(zmq.DEALER)
+    rep_sub = context.socket(zmq.SUB)
 
-    ws_req.connect(ws_req_url)
-    ws_rep.connect(ws_rep_url)
+    ws_req.connect(req_url)
+    ws_rep.connect(rep_url)
     broker.connect(broker_url)
+    rep_sub.connect(pub_url)
     
     ws_req.setsockopt(zmq.SUBSCRIBE, conn_id)
     ws_req.setsockopt(zmq.SUBSCRIBE, "die")
+    rep_sub.setsockopt(zmq.SUBSCRIBE, '')
+
     poller = zmq.Poller()
     poller.register(broker, zmq.POLLIN)
     poller.register(ws_req, zmq.POLLIN)
+    poller.register(rep_sub, zmq.POLLIN)
 
     ident = [sender, conn_id]
     liveness = max_live
@@ -93,7 +77,7 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
 
                 broker.send('', zmq.SNDMORE)
                 broker.send(create_string_buffer(cmd), zmq.SNDMORE)
-                broker.send_multipart(num_args);
+                broker.send_multipart(num_args)
 
               except Exception as e:
                 print e
@@ -126,38 +110,45 @@ def worker_routine(sender, conn_id, ws_req_url, ws_rep_url, broker_url):
 
         if broker in socks:
             try:
-              parts = broker.recv_multipart(zmq.NOBLOCK)
+              parts = broker.recv_multipart()
               print "worker got rep from broker"
               print parts
               if (parts[1] not in msg_types):
                 print "Invalid rep: " + str(parts)
                 continue
 
-              if (parts[1] == "INSERT"):
-                vals = struct.unpack('=4idi', ''.join(parts[2:]))
-                names = ["success", "duplicate", "i", "j", "weight", "pid"]
-              elif (parts[1] == "DELETE"):
-                vals = struct.unpack('=4i', ''.join(parts[2:]))
-                names = ["success", "i", "j", "pid"]
-              elif (parts[1] == "FIND"):
-                vals = struct.unpack('=3idi', ''.join(parts[2:]))
-                names = ["success", "i", "j", "weight", "pid"]
-              else:
-                vals = struct.unpack('=4idi', ''.join(parts[2:]))
-                names = ["i1", "j1", "i2", "j2", "sum", "pid"]
+              ws_rep.send_multipart(ident + ["rep"] + parts[1:])
 
-              key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
-              json_msg = json.dumps(key_vals)
-              ws_rep.send_multipart(ident + ["rep", json_msg])
             except Exception as e:
               print e
+        if rep_sub in socks:
+          parts = rep_sub.recv_multipart()
+          if (ident != parts[0:2]):
+            ws_rep.send_multipart(ident + ["pub"] + parts[3:])
 
     # Close sockets
     ws_req.close()
     ws_rep.close()
     broker.close()
 
+sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
+conn = handler.Connection(sender_id, "tcp://127.0.0.1:9999",
+                          "tcp://127.0.0.1:9998")
+CONNECTION_TIMEOUT=5
+closingMessages={}
+badUnicode=re.compile(u'[\ud800-\udfff]')
 
+msg_types = ["INSERT", "DELETE", "FIND", "RANGE"]
+error_msg = "Usage:\n\t<INSERT,i,j,w>\n\t<DELETE,i,j>\n\t<FIND,i,j>\n\t<RANGE,i1,j1,i2,j2>"
+
+logf=open('handler.log','wb')
+#logf=open('/dev/null','wb')
+#logf=sys.stdout
+
+ws_req_url = "inproc://ws_req"
+ws_rep_url = "inproc://ws_rep"
+broker_url = "tcp://127.0.0.1:9990"
+rep_pub_url = "inproc://rep_pub"
 
 context = zmq.Context.instance()
 sub = context.socket(zmq.SUB)
@@ -165,16 +156,20 @@ sub.connect(broker_url)
 sub.setsockopt_string(zmq.SUBSCRIBE, "100:".decode('ascii'))
 
 # Publish client subscription to worker threads
-ws_req = context.socket(zmq.PUB);
+ws_req = context.socket(zmq.PUB)
 ws_req.bind(ws_req_url)
 
 # Pull backend publishment from worker threads
-ws_rep = context.socket(zmq.PULL);
+ws_rep = context.socket(zmq.PULL)
 ws_rep.bind(ws_rep_url)
 
-poller = zmq.Poller();
-poller.register(ws_rep);
-poller.register(conn.reqs);
+# Pub socket to broadcast some results to all active clients
+rep_pub = context.socket(zmq.PUB)
+rep_pub.bind(rep_pub_url)
+
+poller = zmq.Poller()
+poller.register(ws_rep)
+poller.register(conn.reqs)
 
 while True:
     now=time.time()
@@ -192,20 +187,73 @@ while True:
 
     # Route worker thread messages back to WS client using conn_id & sender_id
     if ws_rep in socks:
-        msg_parts = ws_rep.recv_multipart()
-        # print msg_parts
-        w_type = msg_parts[2]
+        parts = ws_rep.recv_multipart()
+        # print parts
+        msg_type = parts[2]
 
-        if (w_type == "ping"):
-            conn.send(msg_parts[0], msg_parts[1],
+        if (msg_type == "ping"):
+            conn.send(parts[0], parts[1],
                   handler.websocket_response("", wsutil.OP_PING))
 
-        elif (w_type == "rep"):
-            conn.send(msg_parts[0], msg_parts[1],
-                  handler.websocket_response(str(msg_parts[3])))
+        elif (msg_type == "rep"):
+          try:
+            if (parts[3] == "INSERT"):
+              vals = struct.unpack('=4idi', ''.join(parts[4:]))
+              names = ["success", "duplicate", "i", "j", "weight", "pid"]
 
-        elif (w_type == "close"):
-            conn.send(msg_parts[0], msg_parts[1],
+            elif (parts[3] == "DELETE"):
+              vals = struct.unpack('=4i', ''.join(parts[4:]))
+              names = ["success", "i", "j", "pid"]
+
+            elif (parts[3] == "FIND"):
+              vals = struct.unpack('=3idi', ''.join(parts[4:]))
+              names = ["success", "i", "j", "weight", "pid"]
+
+            else:
+              vals = struct.unpack('=4idi', ''.join(parts[4:]))
+              names = ["i1", "j1", "i2", "j2", "sum", "pid"]
+
+            key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
+            key_vals["op"] = parts[3]
+
+
+            # Publish successful insert and delete
+            if ((parts[3] == "INSERT" or parts[3] == "DELETE") and vals[0] == 1):
+              print "got insert/delete rep"
+              rep_pub.send_multipart(parts)
+
+            # Send results as JSON
+            json_msg = json.dumps(key_vals)
+            conn.send(parts[0], parts[1], handler.websocket_response(json_msg))
+
+          except Exception as e:
+            print e
+            break;
+
+        elif (msg_type == "pub"):
+          print "got pub"
+          print parts
+
+          try:
+            if (parts[3] == "INSERT"):
+              vals = struct.unpack('=4idi', ''.join(parts[4:]))
+              names = ["success", "duplicate", "i", "j", "weight", "pid"]
+
+            elif (parts[3] == "DELETE"):
+              vals = struct.unpack('=4i', ''.join(parts[4:]))
+              names = ["success", "i", "j", "pid"]
+
+            key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
+            key_vals["query"] = parts[3]
+            json_msg = json.dumps(key_vals)
+            conn.send(parts[0], parts[1], handler.websocket_response(json_msg))
+
+          except Exception as e:
+            print e
+            break;
+
+        elif (msg_type == "close"):
+            conn.send(parts[0], parts[1],
                 handler.websocket_response('', wsutil.OP_CLOSE))
             print "closed connection"
 
@@ -229,7 +277,7 @@ while True:
 
             # Spawn a worker thread to handler client subscriptions
             thread = threading.Thread(target=worker_routine,
-                args=(req.sender, req.conn_id, ws_req_url, ws_rep_url, broker_url))
+                args=(req.sender, req.conn_id, ws_req_url, ws_rep_url, broker_url, rep_pub_url))
             thread.start()
             conn.reply_websocket(req, "this is a ping from server", wsutil.OP_PING)
             # conn.reply_websocket(req, "this is a pong from server", wsutil.OP_PONG)
@@ -303,7 +351,7 @@ while True:
 
                 clnt_ws_req = wsdata.split(',')
                 if (len(clnt_ws_req) < 2):
-                    conn.reply_websocket(req, error_msg, opcode);
+                    conn.reply_websocket(req, error_msg, opcode)
                     continue
 
                 cmd = clnt_ws_req[0]
@@ -313,7 +361,7 @@ while True:
                     ws_req.send_multipart([req.conn_id, cmd] + val)
 
                 else:
-                    conn.reply_websocket(req, error_msg, opcode);
+                    conn.reply_websocket(req, error_msg, opcode)
                 continue
             except UnicodeError:
                 abortConnection(conn,req,'invalid UTF', wsutil.CLOSE_BAD_DATA)
