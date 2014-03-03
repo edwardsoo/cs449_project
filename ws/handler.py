@@ -210,8 +210,15 @@ while True:
               names = ["success", "i", "j", "weight", "pid"]
 
             else:
-              vals = struct.unpack('=4idi', ''.join(parts[4:]))
-              names = ["i1", "j1", "i2", "j2", "sum", "pid"]
+              vals = struct.unpack('=4id2i', ''.join(parts[4:10]+parts[-1:]))
+              names = ["i1", "j1", "i2", "j2", "sum", "num_entries", "pid"]
+              entries = []
+              for i in range(0, vals[5]):
+                entry_idx = 10 + 3*i
+                entry_val = struct.unpack('=2id', ''.join(parts[entry_idx:entry_idx+3]))
+                entries.append({'i':entry_val[0],'j':entry_val[1],'w':entry_val[2]})
+              names.append('entries')
+              vals = vals + tuple([entries])
 
             key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
             key_vals["op"] = parts[3]
