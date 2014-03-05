@@ -161,7 +161,7 @@ function WebSocketSub()
   ws_logs.val('');
 
   if ("WebSocket" in window) {
-    ws = new WebSocket("ws://localhost:6767/sub");
+    ws = new WebSocket("ws://ec2-54-185-64-69.us-west-2.compute.amazonaws.com/sub");
 
     ws_logs.val(ws_logs.val() + "Opening WebSocket Connection...\n");
     ws_logs[0].scrollTop = ws_logs[0].scrollHeight;
