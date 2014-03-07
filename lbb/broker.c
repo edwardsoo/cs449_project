@@ -2,7 +2,7 @@
 #include <czmq.h>
 #include <stdio.h>
 #include "lbb.h"
-#define LOOPBACK "tcp://127.0.0.1"
+#define BIND_ADDR "tcp://*"
 
 int main (int argc, char* argv[])
 {
@@ -30,12 +30,12 @@ int main (int argc, char* argv[])
   // zsocket_bind (frontend, "tcp://127.0.0.1:9990");
   // zsocket_bind (backend, "tcp://127.0.0.1:5555");
 
-  strcpy(str, LOOPBACK ":");
+  strcpy(str, BIND_ADDR ":");
   strcat(str, argv[2]);
   printf("Broker: binding frontend to %s\n", str);
   zsocket_bind (frontend, str);
 
-  strcpy(str, LOOPBACK ":");
+  strcpy(str, BIND_ADDR ":");
   strcat(str, argv[3]);
   printf("Broker: binding backend to %s\n", str);
   zsocket_bind (backend, str);

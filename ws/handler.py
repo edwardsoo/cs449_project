@@ -153,11 +153,15 @@ rep_pub_url = "inproc://rep_pub"
 context = zmq.Context.instance()
 
 # Ask for a broker
+print "Asking discovery agent for broker"
 broker_disc = context.socket(zmq.REQ)
 broker_disc.connect(discovery_url)
-broker_disc.send('')
-broker_url = broker_disc.recv()
-print "Discovered broker at %s" %(broker_url)
+try:
+    broker_disc.send('')
+    broker_url = broker_disc.recv()
+    print "Discovered broker at %s" %(broker_url)
+except:
+    sys.exit()
 
 # Publish client subscription to worker threads
 ws_req = context.socket(zmq.PUB)
