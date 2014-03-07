@@ -147,13 +147,17 @@ logf=open('handler.log','wb')
 
 ws_req_url = "inproc://ws_req"
 ws_rep_url = "inproc://ws_rep"
-broker_url = "tcp://127.0.0.1:9990"
+discovery_url = "tcp://127.0.0.1:11111"
 rep_pub_url = "inproc://rep_pub"
 
 context = zmq.Context.instance()
-sub = context.socket(zmq.SUB)
-sub.connect(broker_url)
-sub.setsockopt_string(zmq.SUBSCRIBE, "100:".decode('ascii'))
+
+# Ask for a broker
+broker_disc = context.socket(zmq.REQ)
+broker_disc.connect(discovery_url)
+broker_disc.send('')
+broker_url = broker_disc.recv()
+print "Discovered broker at %s" %(broker_url)
 
 # Publish client subscription to worker threads
 ws_req = context.socket(zmq.PUB)

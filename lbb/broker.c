@@ -2,15 +2,62 @@
 #include <czmq.h>
 #include <stdio.h>
 #include "lbb.h"
+#define LOOPBACK "tcp://127.0.0.1"
 
-int main (void)
+int main (int argc, char* argv[])
 {
+  int max_fe, max_be;
+
+  if (argc != 6) {
+    printf("Usage: %s TCP_ADDR FRONTEND_PORT BACKEND_PORT MAX_FE_CONN MAX_BE_CONN\n", argv[0]);
+    printf("Example: %s 12.34.56.78 9998 9999 1 4\n", argv[0]);
+    exit(1);
+  }
+
+  max_fe = atoi(argv[4]);
+  max_be = atoi(argv[5]);
+  if (!max_fe || !max_be) {
+    printf("Number of connection must be greater than zero\n");
+    exit(1);
+  }
+
   zctx_t *ctx = zctx_new ();
   zframe_t *identity;
+  char str[0x100];
   void *frontend = zsocket_new (ctx, ZMQ_ROUTER);
   void *backend = zsocket_new (ctx, ZMQ_ROUTER);
-  zsocket_bind (frontend, "tcp://127.0.0.1:9990");
-  zsocket_bind (backend, "tcp://127.0.0.1:5555");
+
+  // zsocket_bind (frontend, "tcp://127.0.0.1:9990");
+  // zsocket_bind (backend, "tcp://127.0.0.1:5555");
+
+  strcpy(str, LOOPBACK ":");
+  strcat(str, argv[2]);
+  printf("Broker: binding frontend to %s\n", str);
+  zsocket_bind (frontend, str);
+
+  strcpy(str, LOOPBACK ":");
+  strcat(str, argv[3]);
+  printf("Broker: binding backend to %s\n", str);
+  zsocket_bind (backend, str);
+
+  // Notify broker discovery service of this broker instance
+  void *push = zsocket_new (ctx, ZMQ_PUSH);
+  zsocket_connect (push, "tcp://127.0.0.1:11110");
+  strcpy(str, "tcp://");
+  strcat(str, argv[1]);
+  strcat(str, ":");
+  strcat(str, argv[2]);
+  printf("Broker: advertising frontend at %s\n", str);
+  zmq_send(push, str, strlen(str), ZMQ_SNDMORE);
+  zmq_send(push, &max_fe, sizeof(int), ZMQ_SNDMORE);
+  strcpy(str, "tcp://");
+  strcat(str, argv[1]);
+  strcat(str, ":");
+  strcat(str, argv[3]);
+  printf("Broker: advertising backend at %s\n", str);
+  zmq_send(push, str, strlen(str), ZMQ_SNDMORE);
+  zmq_send(push, &max_be, sizeof(int), 0);
+  
 
   // Queue of available workers
   zlist_t *workers = zlist_new ();
