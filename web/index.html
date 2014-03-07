@@ -175,7 +175,7 @@ function WebSocketSub()
   ws_logs.empty();
 
   if ("WebSocket" in window) {
-    ws = new WebSocket("ws://ec2-54-185-64-69.us-west-2.compute.amazonaws.com/sub");
+    ws = new WebSocket("ws://" + window.location.host + "/sub");
 
     appendMsg(ws_logs, "Opening WebSocket Connection...");
 
