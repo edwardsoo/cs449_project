@@ -1,7 +1,7 @@
 ################################################################################
 ## Parameters
 ################################################################################
-n=5# Number of OS processes
+n=10# Number of OS processes
 nfg=10# Number of collocated process per OS process
 nApps=$(n)# Number of AppNodes
 t=0# Number of Tests each App Node will generate
@@ -10,7 +10,6 @@ p=# Other compiler parameters
 k=20# Number of sends before an Ssend (for flow-control)
 w=10# Window size for AppNodes to oversubscribe the data structure
 b=10# Batch size if batching is used
-m=26# Number of machines to use for 'make special'
 
 IP=0# Insert Probability
 DP=0# Delete  Probability
@@ -18,11 +17,11 @@ RFP=0# Range Find Probability
 
 AS=1# Should we use APP  shortcuts
 LS=0# Should we use LIST shortcuts
-ZMQ=0# Should we use ZeroMQ based web-app as front-end
+ZMQ=1# Should we use ZeroMQ based web-app as front-end
 ZMQin=127.0.0.1:5555# ZeroMQ source address and port
-ZMQout=127.0.0.1:5556# ZeroMQ sink address and port
+ZMQout=localhost:11112# ZeroMQ sink address and port
 
-ME=0# Should we do Manual Experiment
+ME=1# Should we do Manual Experiment
 MD=2# Mask dimension for Range Query
 ST=0# Special Test ON or OFF
 SP=100# Span for the Range Query to be used
@@ -31,7 +30,7 @@ LT=0# Latency Threshold to increase or decrease Window Limit,W, in app processes
 ITER=1000# Number of iterations before an MPI_Wtime() is called
 
 x=0# Boolean variable deciding whether to specify '-enable-x' when running mpiexec
-ndb=0# Boolean variable deciding whether to use -DNODEBUG in other parameters 
+ndb=1# Boolean variable deciding whether to use -DNODEBUG in other parameters 
 
 mf=./nodefile # Machine file to use with mpiexec
 prefix=
@@ -86,7 +85,7 @@ all: zmqdemo
 ## Demo Targets 
 ################################################################################
 zmqdemo:
-	$(MAKE) srunb n=$(n) nfg=$(nfg) b=$(b) w=$(w) k=$(k) t=0 IP=$(IP) DP=$(DP) RFP=$(RFP) AS=$(AS) LS=$(LS) MD=2 ST=0 SP=$(SP) TP=$(TP) LT=$(LT) ITER=$(ITER) demo=0 ME=0 ZMQ=1 ndb=0
+	$(MAKE) srunb n=$(n) nfg=$(nfg) b=$(b) w=$(w) k=$(k) t=0 IP=$(IP) DP=$(DP) RFP=$(RFP) AS=$(AS) LS=$(LS) MD=2 ST=0 SP=$(SP) TP=$(TP) LT=$(LT) ITER=$(ITER) demo=0 ME=1 ZMQ=1 ndb=1
 
 
 ################################################################################
