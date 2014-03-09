@@ -175,7 +175,7 @@ function WebSocketSub()
   ws_logs.empty();
 
   if ("WebSocket" in window) {
-    ws = new WebSocket("ws://localhost:6767/sub");
+    ws = new WebSocket("ws://" + window.location.host + "/sub");
 
     appendMsg(ws_logs, "Opening WebSocket Connection...");
 
