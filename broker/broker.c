@@ -13,7 +13,7 @@ int main (int argc, char* argv[])
   char str[0x100];
 
   if (argc != 5) {
-    printf ("Usage: %s HOST_ADDR FRONTEND_PORT BACKEND_PORT DISCOVERY_ADDR_AND_PORT\n",
+    printf ("Usage: %s HOST_ADDR FRONTEND_PORT BACKEND_PORT DISCOVERY_ADDR:PORT\n",
         argv[0]);
     printf ("Example: %s 1.2.3.4 9998 9999 5.6.4.7:8899\n", argv[0]);
     exit (1);

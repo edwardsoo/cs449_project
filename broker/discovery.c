@@ -150,7 +150,7 @@ int main (int argc, char* argv[]) {
         be_msg = zmsg_new ();
         zmsg_pushstr (be_msg, DISC_OK);
         frame = zframe_dup (identity);
-        zmsg_wrap (be_msg, identity);
+        zmsg_wrap (be_msg, frame);
         zmsg_send (&be_msg, sock);
 
       } else {
@@ -192,18 +192,13 @@ void get_response (
     void* sock, zhash_t* brokers, zhash_t *backends,
     zframe_t* identity, char *addrstr
     ) {
+
+  zframe_t *frame;
   int rv;
   char *idstr = zframe_strhex (identity);
   char *addr = malloc (strlen(addrstr) + 1);
-  strcpy (addr, addrstr);
 
-  zmsg_t *be_msg = zmsg_new ();
-  zmsg_pushstr (be_msg, addr);
-  zframe_t *frame = zframe_dup (identity);
-  zmsg_wrap (be_msg, frame);
-  printf ("\nDiscovery: replies to backend\n");
-  zmsg_dump (be_msg);
-  zmsg_send (&be_msg, sock);
+  strcpy (addr, addrstr);
 
   // Update broker table
   zlist_t *backend_list = zhash_lookup (brokers, addr);
@@ -216,6 +211,15 @@ void get_response (
   if (rv == -1) {
     printf ("\nDiscovery: backend ID %s already in table\n", idstr);
   }
-  zhash_freefn (backends, idstr, free);
+  zhash_freefn (backends, idstr, NULL);
   free (idstr);
+
+  zmsg_t *be_msg = zmsg_new ();
+  zmsg_pushstr (be_msg, addr);
+  frame = zframe_dup (identity);
+  zmsg_wrap (be_msg, frame);
+  printf ("\nDiscovery: replies to backend\n");
+  zmsg_dump (be_msg);
+  zmsg_send (&be_msg, sock);
+
 }

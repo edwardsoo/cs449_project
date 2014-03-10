@@ -131,6 +131,12 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
     ws_rep.close()
     broker.close()
 
+# Get broker address from command line arguments
+if len(sys.argv) < 2:
+  print "Need broker frontend address"
+  sys.exit()
+broker_url = "tcp://" + sys.argv[1]
+
 sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
 conn = handler.Connection(sender_id, "tcp://127.0.0.1:9999",
                           "tcp://127.0.0.1:9998")
@@ -147,21 +153,9 @@ logf=open('handler.log','wb')
 
 ws_req_url = "inproc://ws_req"
 ws_rep_url = "inproc://ws_rep"
-discovery_url = "tcp://127.0.0.1:11111"
 rep_pub_url = "inproc://rep_pub"
 
 context = zmq.Context.instance()
-
-# Ask for a broker
-print "Asking discovery agent for broker"
-broker_disc = context.socket(zmq.REQ)
-broker_disc.connect(discovery_url)
-try:
-    broker_disc.send('')
-    broker_url = broker_disc.recv()
-    print "Discovered broker at %s" %(broker_url)
-except:
-    sys.exit()
 
 # Publish client subscription to worker threads
 ws_req = context.socket(zmq.PUB)
