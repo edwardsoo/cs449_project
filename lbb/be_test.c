@@ -1,21 +1,55 @@
 #include <zmq.h>
 #include <czmq.h>
 #include <stdio.h>
+#include <broker.h>
 
-int main (void) {
+int main (int argc, char *argv[]) {
   char str[100];
-  int num;
-  zctx_t *ctx = zctx_new();
+  zctx_t *ctx = zctx_new ();
+  zmsg_t *msg;
 
-  void *broker_be_req = zsocket_new(ctx, ZMQ_REQ);
-  zsocket_connect(broker_be_req, "tcp://localhost:11112");
+  if (argc < 2) {
+    printf ("Usage: %s DISCOVERY_ADDR:PORT\n", argv[0]);
+    exit(1);
+  }
 
-  // Request msg does not matter
-  zmq_send(broker_be_req, NULL, 0, 0);
+  void *disc = zsocket_new (ctx, ZMQ_DEALER);
+  strcpy (str, "tcp://");
+  strcat (str, argv[1]);
+  zsocket_connect(disc, str);
 
-  num = zmq_recv(broker_be_req, str, 100, 0);
-  assert(num);
-  str[num] = 0;
-  printf("Discovered broker backend address %s\n", str);
+  // Request for a broker
+  msg = zmsg_new ();
+  zmsg_pushstr (msg, DISC_GET);
+  zmsg_pushmem (msg, NULL, 0);
+  zmsg_send (&msg, disc);
+
+  // Receive broker address
+  msg = zmsg_recv (disc);
+  printf ("Received reply:\n");
+  zmsg_dump (msg);
+  zmsg_destroy (&msg);
+
+  if (argc > 2) {
+    // Wait for broker to terminate
+    printf ("Waiting for broker to terminate\n");
+    msg = zmsg_recv (disc);
+    printf ("Received msg:\n");
+    zmsg_dump (msg);
+    zmsg_destroy (&msg);
+
+  } else {
+    // Release broker
+    msg = zmsg_new ();
+    zmsg_pushstr (msg, DISC_PUT);
+    zmsg_pushmem (msg, NULL, 0);
+    zmsg_send (&msg, disc);
+
+    // Wait for ack
+    msg = zmsg_recv (disc);
+    printf ("Received msg:\n");
+    zmsg_dump (msg);
+    zmsg_destroy (&msg);
+  }
   return 0;
 }
