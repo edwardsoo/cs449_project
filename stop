@@ -1,0 +1,4 @@
+#/bin/sh
+
+m2sh stop -name main
+tmux kill-session -t run
