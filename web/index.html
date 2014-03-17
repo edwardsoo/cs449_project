@@ -8,7 +8,7 @@
     padding: 10px 10px 5px;
   }
   div.scroll_list {
-    width: 95%;
+    width: 100%;
     height: 50%;
     overflow: auto;
     border:2px solid;
@@ -18,26 +18,23 @@
   div#if {
     width: 100%;
   }
-  div.a_third {
-    display: inline;
-    width: 34%;
+  table {
+    width: 100%;
   }
-  div.a_forth {
-    display: inline-block;
-    width: 24%;
-  }
-  div.a_fifth {
-    display: inline;
-    width: 19%;
-  }
-  input[type="text"] {
-    position: relative;
+  canvas#range_graph {
+    width: 100%;
+    height: 100%;
+    display: none;
+    border:2px solid;
+    border-radius:5px;
+    border-color: gainsboro;
   }
   h3 {
     margin-bottom: auto;
   }
 </style>
-<script src="jquery-2.1.0.min.js"></script>
+<script src="lib/jquery.min.js"></script>
+<script src="lib/arbor.js"></script>
 <script type="text/javascript">
 var ws;
 
@@ -233,49 +230,47 @@ function startWS()
   <div id='if' style="display:none">
   <button id="close">Close connection</button>
 
-  <h3>Insert Edge</h3>
-  <label for="insert_i">Vertex 1:</label>
-  <input id="insert_i" type="text"/>
-  <label for="insert_j">Vertex 2:</label>
-  <input id="insert_j" type="text"/><br>
-  <label for="insert_w">Weight:</label>
-  <input id="insert_w" type="text"/>
-  <button id="insert">Insert</button>
-
-  <h3>Delete Edge</h3>
-  <label for="delete_i">Vertex 1:</label>
-  <input id="delete_i" type="text"/>
-  <label for="delete_j">Vertex 2:</label>
-  <input id="delete_j" type="text"/>
-  <button id="delete">Delete</button>
-
-  <h3>Find Edge</h3>
-  <label for="find_i">Vertex 1:</label>
-  <input id="find_i" type="text"/>
-  <label for="find_j">Vertex 2:</label>
-  <input id="find_j" type="text"/>
-  <button id="find">Find</button>
-
-  <h3>Range Find</h3>
-  <label for="range_i1">Vertex 1 Range:</label>
-  <input id="range_i1" type="text"/>~
-  <input id="range_i2" type="text"/><br>
-  <label for="range_j1">Vertex 2 Range:</label>
-  <input id="range_j1" type="text"/>~
-  <input id="range_j2" type="text"/>
-  <button id="range">Find</button>
+  <table>
+  <tr style="height 55%">
+    <td style="width: 50%">
+      <h3>Insert Edge</h3>
+      <input id="insert_i" type="text" placeholder="Vertex i"/>
+      <input id="insert_j" type="text" placeholder="Vertex j"/>
+      <input id="insert_w" type="text" placeholder="Weight"/>
+      <button id="insert">Insert</button>
+    
+      <h3>Delete Edge</h3>
+      <input id="delete_i" type="text" placeholder="Vertex i"/>
+      <input id="delete_j" type="text" placeholder="Vertex j"/>
+      <button id="delete">Delete</button>
+    
+      <h3>Find Edge</h3>
+      <input id="find_i" type="text" placeholder="Vertex i"/>
+      <input id="find_j" type="text" placeholder="Vertex j"/>
+      <button id="find">Find</button>
+    
+      <h3>Range Find</h3>
+      <input id="range_i1" type="text" placeholder="Vertex i lower bound"/> -
+      <input id="range_i2" type="text" placeholder="Vertex i upper bound"/><br>
+      <input id="range_j1" type="text" placeholder="Vertex j lower bound"/> -
+      <input id="range_j2" type="text" placeholder="Vertex j upper bound"/>
+      <button id="range">Find</button>
+    </td>
+    <td style="width: 50%">
+      <canvas id="range_graph"></canvas>
+    </td>
+  </tr>
+  </table>
 
   <!--
   <label for="file">Load file</label>
   <input id="file" type="file" name="file"/>
-  <br>
-  
+  <br>  
   <label for="message">Message</label>
   <input id="message" type="text"/>
   <input id="send" type="submit" value="Send"/>
   //-->
 
-  <br>
   <br>
   <div class="scroll_list">
   <ul id="ws_logs">
