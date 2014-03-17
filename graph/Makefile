@@ -19,7 +19,7 @@ AS=1# Should we use APP  shortcuts
 LS=0# Should we use LIST shortcuts
 ZMQ=1# Should we use ZeroMQ based web-app as front-end
 ZMQin=127.0.0.1:5555# ZeroMQ source address and port
-ZMQdiscovery=127.0.0.1:1111# ZeroMQ Discovery Address
+ZMQdiscovery=127.0.0.1:11111# ZeroMQ Discovery Address
 
 ME=1# Should we do Manual Experiment
 MD=2# Mask dimension for Range Query
