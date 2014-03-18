@@ -182,6 +182,20 @@ function bindSendMessage(ws_logs) {
   });
 }
 
+function bindGetName(ws_logs) {
+  $('#get_name').unbind();
+
+  $('#get_name').click(function() {
+    if (ws.readyState == WebSocket.OPEN) {
+      sys.eachNode(function(node, pt) {
+        ws.send("NAME_LOOKUP," + node.name);
+      });
+    } else {
+      appendMsg(ws_logs, "WebSocket connection error");
+    }
+  });
+}
+
 function startWS()
 {
   $('#start_ws').hide();
@@ -201,6 +215,7 @@ function startWS()
       $('#if').show();
       bindOps(ws_logs);
       bindSendMessage(ws_logs);
+      bindGetName(ws_logs);
     };
 
     ws.onmessage = function(event) {
@@ -218,6 +233,9 @@ function startWS()
           $.each(result.entries, function(idx, entry) {
             sys.addEdge(entry.i, entry.j, {weight: entry.w});
           });
+        } else if (result.op == "NAME_LOOKUP" && result.success == 1) {
+          var node = sys.getNode(result.key);
+          node.alt = result.value;
         }
       } catch (e) {
       }
@@ -240,6 +258,7 @@ function startWS()
 
 <body>
 <h1>WebSocket Graph Server</h1>
+<hr>
 <div id="ws">
   <button id="start_ws" onclick="startWS()">Start connection</button>
 
@@ -274,6 +293,10 @@ function startWS()
     </td>
     <td style="width: 50%">
       <h3>Range Find Graph</h3>
+      <label for="name_map">Upload Name Map</label>
+      <input id="name_map" type="file" name="file"/>
+      <button id="get_name">Convert Vertex to Name</button>
+      <br>
       <canvas id="viewport" width="600" height="300"></canvas>
     </td>
   </tr>

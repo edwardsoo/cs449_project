@@ -380,9 +380,10 @@ while True:
                 elif (cmd in name_ops):
                     name_server.send_multipart(clnt_ws_req)
                     msg_parts = name_server.recv_multipart()
-                    success = struct.unpack('=i', ''.join(msg_parts[0]))
-                    msg_parts[0] = success[0]
-                    names = ["success", "message", "value"]
+                    success = struct.unpack('=i', ''.join(msg_parts[1]))
+                    msg_parts[1] = success[0]
+                    
+                    names = ["op", "success", "message", "key", "value"]
                     key_vals = {names[i]:msg_parts[i]  for i in xrange(len(msg_parts))}
                     json_msg = json.dumps(key_vals)
                     conn.reply_websocket(req, json_msg, opcode)

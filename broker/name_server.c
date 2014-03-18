@@ -37,7 +37,7 @@ int main (int argc, char* argv[]) {
     op = zframe_strdup (frame);
     zframe_destroy (&frame);
 
-    // Reply format: [SUCCESS] => [MSG] => [VALUE]
+    // Reply format: [OPERATION] => [SUCCESS] => [MSG] => [KEY] => [VALUE]
     rep = zmsg_new ();
 
     if (strcmp (op, "NAME_INSERT") == 0 && zmsg_size (req) == 2) {
@@ -61,6 +61,7 @@ int main (int argc, char* argv[]) {
         zhash_freefn (table, key, free);
       }
       zmsg_addstr (rep, key);
+      zmsg_addstr (rep, value);
 
     } else if (strcmp (op, "NAME_LOOKUP") == 0 && zmsg_size (req) == 1) {
       frame = zmsg_pop (req);
@@ -71,11 +72,13 @@ int main (int argc, char* argv[]) {
       if (!value) {
         success = 0;
         zmsg_addstr (rep, "undefined");
+        zmsg_addstr (rep, key);
         zmsg_addstr (rep, "");
 
       } else {
         success = 1;
         zmsg_addstr (rep, "found");
+        zmsg_addstr (rep, key);
         zmsg_addstr (rep, value);
       }
       
@@ -83,13 +86,15 @@ int main (int argc, char* argv[]) {
       success = 0;
       zmsg_addstr (rep, "bad command");
       zmsg_addstr (rep, "");
+      zmsg_addstr (rep, "");
     }
+
+    zmsg_pushmem (rep, &success, sizeof (int));
+    zmsg_pushstr (rep, op);
+    zmsg_send (&rep, fe);
 
     free (op);
     zmsg_destroy (&req);
-
-    zmsg_pushmem (rep, &success, sizeof (int));
-    zmsg_send (&rep, fe);
   }
 
   zhash_destroy (&table);
