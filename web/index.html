@@ -20,12 +20,11 @@
   }
   table {
     width: 100%;
+    height: 35%;
   }
-  canvas#range_graph {
-    width: 100%;
-    height: 100%;
-    display: none;
-    border:2px solid;
+  canvas#viewport{
+    float: center;
+    border:2px none;
     border-radius:5px;
     border-color: gainsboro;
   }
@@ -33,8 +32,9 @@
     margin-bottom: auto;
   }
 </style>
-<script src="lib/jquery.min.js"></script>
-<script src="lib/arbor.js"></script>
+<script src="js/jquery.min.js"></script>
+<script src="js/arbor.js"></script>
+<script src="js/graph.js"></script>
 <script type="text/javascript">
 var ws;
 
@@ -231,7 +231,7 @@ function startWS()
   <button id="close">Close connection</button>
 
   <table>
-  <tr style="height 55%">
+  <tr>
     <td style="width: 50%">
       <h3>Insert Edge</h3>
       <input id="insert_i" type="text" placeholder="Vertex i"/>
@@ -257,7 +257,7 @@ function startWS()
       <button id="range">Find</button>
     </td>
     <td style="width: 50%">
-      <canvas id="range_graph"></canvas>
+    <canvas id="viewport" width="600" height="300"></canvas>
     </td>
   </tr>
   </table>
