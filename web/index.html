@@ -9,7 +9,7 @@
   }
   div.scroll_list {
     width: 100%;
-    height: 50%;
+    height: 45%;
     overflow: auto;
     border:2px solid;
     border-radius:5px;
@@ -27,8 +27,8 @@
     border-radius:5px;
     border-color: gainsboro;
   }
-  h3 {
-    margin-bottom: auto;
+  h3, h4 {
+    margin-bottom: 0;
   }
 </style>
 <script src="js/jquery.min.js"></script>
@@ -37,6 +37,7 @@
 <script type="text/javascript">
 var ws;
 var sys;
+var canvas;
 
 function appendMsg(ws_logs, msg) {
   ws_logs.append('<li>' + msg + '</li>');
@@ -179,6 +180,12 @@ function bindLoadNameMap(ws_logs) {
   });
 }
 
+function resizeCanvas() {
+  canvas.width = canvas.parentElement.offsetWidth;
+  canvas.height = canvas.parentElement.offsetHeight;
+  sys.screenSize(canvas.width, canvas.height);
+}
+
 function bindLoadgraph(ws_logs) {
   $('#load_graph').unbind();
 
@@ -249,6 +256,7 @@ function startWS()
 
       // Show application interface
       $('#if').show();
+      resizeCanvas();
       bindOps(ws_logs);
       bindSendMessage(ws_logs);
       bindGetName(ws_logs);
@@ -299,28 +307,28 @@ function startWS()
 
   <table>
   <tr>
-    <th align="left">Operations</th>
-    <th align="left">Range Graph</th>
+    <th align="left"><h3>Operations</h3></th>
+    <th align="left"><h3>Range Graph</h3></th>
   </tr>
   <tr>
     <td style="width: 50%">
-      <h3>Insert Edge</h3>
+      <h4>Insert Edge</h4>
       <input id="insert_i" type="text" placeholder="Vertex i"/>
       <input id="insert_j" type="text" placeholder="Vertex j"/>
       <input id="insert_w" type="text" placeholder="Weight"/>
       <button id="insert">Insert</button>
     
-      <h3>Delete Edge</h3>
+      <h4>Delete Edge</h4>
       <input id="delete_i" type="text" placeholder="Vertex i"/>
       <input id="delete_j" type="text" placeholder="Vertex j"/>
       <button id="delete">Delete</button>
     
-      <h3>Find Edge</h3>
+      <h4>Find Edge</h4>
       <input id="find_i" type="text" placeholder="Vertex i"/>
       <input id="find_j" type="text" placeholder="Vertex j"/>
       <button id="find">Find</button>
     
-      <h3>Range Find</h3>
+      <h4>Range Find</h4>
       <input id="range_i1" type="text" placeholder="Vertex i lower bound"/> -
       <input id="range_i2" type="text" placeholder="Vertex i upper bound"/><br>
       <input id="range_j1" type="text" placeholder="Vertex j lower bound"/> -
