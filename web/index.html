@@ -23,8 +23,7 @@
     height: 35%;
   }
   canvas#viewport{
-    float: center;
-    border:2px none;
+    border:2px solid;
     border-radius:5px;
     border-color: gainsboro;
   }
@@ -37,6 +36,7 @@
 <script src="js/graph.js"></script>
 <script type="text/javascript">
 var ws;
+var sys;
 
 function appendMsg(ws_logs, msg) {
   ws_logs.append('<li>' + msg + '</li>');
@@ -205,6 +205,22 @@ function startWS()
 
     ws.onmessage = function(event) {
       var msg = event.data;
+      try {
+        var result = JSON.parse(msg);
+        if (result.op == "RANGE") {
+          // Clear graph
+          sys.eachNode(function(node, pt) {
+            sys.pruneNode(node);
+          });
+          sys.eachEdge(function(edge, pt1, pt2) {
+            sys.pruneEdge(edge);
+          });
+          $.each(result.entries, function(idx, entry) {
+            sys.addEdge(entry.i, entry.j, {weight: entry.w});
+          });
+        }
+      } catch (e) {
+      }
       appendMsg(ws_logs, msg);
     };
 
@@ -257,7 +273,8 @@ function startWS()
       <button id="range">Find</button>
     </td>
     <td style="width: 50%">
-    <canvas id="viewport" width="600" height="300"></canvas>
+      <h3>Range Find Graph</h3>
+      <canvas id="viewport" width="600" height="300"></canvas>
     </td>
   </tr>
   </table>

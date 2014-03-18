@@ -114,16 +114,8 @@
   }    
 
   $(document).ready(function(){
-    var sys = arbor.ParticleSystem(5000, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
+    sys = arbor.ParticleSystem(5000, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
     sys.renderer = DeadSimpleRenderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
-
-    sys.addEdge('a','b', {weight:10});
-    sys.addEdge('a','c', {weight:0});
-    sys.addEdge('a','d', {weight:5});
-    sys.addEdge('a','e', {weight:2});
-    sys.eachEdge(function(edge, pt1, pt2) {
-      console.debug(edge);
-    });
   })
 
 
