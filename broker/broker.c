@@ -44,7 +44,6 @@ int main (int argc, char* argv[])
   // Ignore interrupts
   // signal(SIGINT, SIG_IGN);
 
-  printf ("Broker: advertises self at %s\n", str);
   msg = zmsg_new ();
   frame = zframe_new (DISC_ADD, strlen (DISC_ADD));
   zmsg_append (msg, &frame);
@@ -52,6 +51,7 @@ int main (int argc, char* argv[])
   strcat (str, argv[1]);
   strcat (str, ":");
   strcat (str, argv[3]);
+  printf ("Broker: advertises self at %s\n", str);
   frame = zframe_new (str, strlen (str));
   zmsg_append (msg, &frame);
   zmsg_pushmem (msg, NULL, 0);
