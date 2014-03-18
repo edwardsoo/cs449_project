@@ -222,9 +222,19 @@ function bindLoadgraph(ws_logs) {
   });
 }
 
+function wipeGraph() {
+  sys.eachNode(function(node, pt) {
+    sys.pruneNode(node);
+  });
+  sys.eachEdge(function(edge, pt1, pt2) {
+    sys.pruneEdge(edge);
+  });
+}
+
 function startWS()
 {
   $('#start_ws').hide();
+  wipeGraph();
 
   var ws_logs = $('#ws_logs');
   ws_logs.empty();
@@ -251,12 +261,7 @@ function startWS()
         var result = JSON.parse(msg);
         if (result.op == "RANGE") {
           // Clear graph
-          sys.eachNode(function(node, pt) {
-            sys.pruneNode(node);
-          });
-          sys.eachEdge(function(edge, pt1, pt2) {
-            sys.pruneEdge(edge);
-          });
+          wipeGraph();
           $.each(result.entries, function(idx, entry) {
             sys.addEdge(entry.i, entry.j, {weight: entry.w});
           });
@@ -294,6 +299,10 @@ function startWS()
 
   <table>
   <tr>
+    <th align="left">Operations</th>
+    <th align="left">Range Graph</th>
+  </tr>
+  <tr>
     <td style="width: 50%">
       <h3>Insert Edge</h3>
       <input id="insert_i" type="text" placeholder="Vertex i"/>
@@ -319,10 +328,9 @@ function startWS()
       <button id="range">Find</button>
     </td>
     <td style="width: 50%">
-      <h3>Range Find Graph</h3>
       <label for="name_map">Upload Name Map</label>
       <input id="name_map" type="file" name="file"/>
-      <button id="get_name">Convert Vertex to Name</button>
+      <button id="get_name">Use Name</button>
       <br>
       <canvas id="viewport" width="600" height="300"></canvas>
     </td>
