@@ -49,7 +49,6 @@ function bindOps(ws_logs) {
   $('#find').unbind();
   $('#delete').unbind();
   $('#range').unbind();
-  $('#file').unbind();
 
   $('#insert').click(function() {
     var i,j,w;
@@ -107,45 +106,6 @@ function bindOps(ws_logs) {
     }
   });
 
-  $('#file').change(function(evt) {
-    // console.debug(evt.target.files[0]);
-    var f = evt.target.files[0];
-    var reader = new FileReader();
-    reader.onload = function(prog) {
-      var content = prog.target.result;
-      var ops = content.split("\n");
-      var i;
-      var delta_list = [];
-      for (i = 0; i < ops.length; i++) {
-        var targs = ops[i].trim().split(":",2);
-        if (targs.length != 2) {
-          console.log("Missing delta time on line " + i + ": " + ops[i]);
-          continue;
-        }
-        var delta = targs[0];
-        if (isNaN(parseFloat(delta)) || !isFinite(delta)) {
-          console.log("Invalid delta time on line " + i + ": " + ops[i]);
-          continue;
-        }
-        var args = targs[1].trim().split(",");
-        if (args.length) {
-          var opstr = args[0].toUpperCase();
-          var opcode = $.inArray(opstr, ["INSERT", "DELETE", "FIND", "RANGE"])
-          var num_args = [4,3,3,5];
-          if (opcode > -1 && args.length == num_args[opcode]) {
-            delta_list.push({"op":targs[1], "delta":delta})
-            continue;
-          }
-        }
-        console.log("Invalid operation on line " + i + ": " + ops[i]);
-      }
-      console.log(delta_list);
-      sendDeltaTimeOp(delta_list.reverse(), ws_logs);
-    };
-    reader.readAsText(f);
-    evt.preventDefault();
-  });
-
   $('#close').click(function() {
     ws.close();
     $('#if').hide();
@@ -196,6 +156,72 @@ function bindGetName(ws_logs) {
   });
 }
 
+function bindLoadNameMap(ws_logs) {
+  $('#name_map').unbind();
+
+  $('#name_map').change(function(evt) {
+    // console.debug(evt.target.files[0]);
+    var f = evt.target.files[0];
+    var reader = new FileReader();
+    reader.onload = function(prog) {
+      var content = prog.target.result;
+      var entries = content.split("\n");
+      if (ws.readyState == WebSocket.OPEN) {
+        $.each(entries, function(idx, entry) {
+          ws.send(entry);
+        });
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
+    };
+    reader.readAsText(f);
+    evt.preventDefault();
+  });
+}
+
+function bindLoadgraph(ws_logs) {
+  $('#load_graph').unbind();
+
+  $('#load_graph').change(function(evt) {
+    // console.debug(evt.target.files[0]);
+    var f = evt.target.files[0];
+    var reader = new FileReader();
+    reader.onload = function(prog) {
+      var content = prog.target.result;
+      var ops = content.split("\n");
+      var i;
+      var delta_list = [];
+      for (i = 0; i < ops.length; i++) {
+        var targs = ops[i].trim().split(":",2);
+        if (targs.length != 2) {
+          console.log("Missing delta time on line " + i + ": " + ops[i]);
+          continue;
+        }
+        var delta = targs[0];
+        if (isNaN(parseFloat(delta)) || !isFinite(delta)) {
+          console.log("Invalid delta time on line " + i + ": " + ops[i]);
+          continue;
+        }
+        var args = targs[1].trim().split(",");
+        if (args.length) {
+          var opstr = args[0].toUpperCase();
+          var opcode = $.inArray(opstr, ["INSERT", "DELETE", "FIND", "RANGE"])
+          var num_args = [4,3,3,5];
+          if (opcode > -1 && args.length == num_args[opcode]) {
+            delta_list.push({"op":targs[1], "delta":delta})
+            continue;
+          }
+        }
+        console.log("Invalid operation on line " + i + ": " + ops[i]);
+      }
+      console.log(delta_list);
+      sendDeltaTimeOp(delta_list.reverse(), ws_logs);
+    };
+    reader.readAsText(f);
+    evt.preventDefault();
+  });
+}
+
 function startWS()
 {
   $('#start_ws').hide();
@@ -216,6 +242,7 @@ function startWS()
       bindOps(ws_logs);
       bindSendMessage(ws_logs);
       bindGetName(ws_logs);
+      bindLoadNameMap(ws_logs);
     };
 
     ws.onmessage = function(event) {
@@ -303,8 +330,8 @@ function startWS()
   </table>
 
   <!--
-  <label for="file">Load file</label>
-  <input id="file" type="file" name="file"/>
+  <label for="load_graph">Load file</label>
+  <input id="load_graph" type="file" name="file"/>
   <br>  
   <label for="message">Message</label>
   <input id="message" type="text"/>
