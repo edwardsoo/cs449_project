@@ -52,8 +52,8 @@
           // pt1:  {x:#, y:#}  source position in screen coords
           // pt2:  {x:#, y:#}  target position in screen coords
 
-          var tri_base = 10;
-          var tri_height = 10;
+          var tri_base = 3;
+          var tri_height = 5;
           var margin = 5;
           var vec = pt2.subtract(pt1);
           var dist = vec.magnitude();
@@ -90,10 +90,12 @@
           ctx.closePath();
 
           // Label edge with weight
+          /*
           ctx.fillStyle = "rgba(0,0,0,1)";
           tmp_pt = pt2.subtract(vec.multiply(2*tri_height + margin));
           tmp_pt = tmp_pt.add(oth_vec.multiply(margin));
           ctx.fillText(edge.data.weight, tmp_pt.x, tmp_pt.y);
+          */
           
         })
 
@@ -101,12 +103,20 @@
           // node: {mass:#, p:{x,y}, name:"", data:{}}
           // pt:   {x:#, y:#}  node position in screen coords
 
-          // draw a rectangle centered at pt
-          var w = 10;
-          ctx.fillStyle = "rgba(0,0,0,1)";
-          ctx.fillRect(pt.x-w/2, pt.y-w/2, w,w);
+          // draw a circle centered at pt
+          var r = 5;
+          ctx.fillStyle = "rgba(100,100,255,1)";
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, r, 0, 2*Math.PI);
+          ctx.fill();
+          //ctx.fillRect(pt.x-w/2, pt.y-w/2, w,w);
           ctx.font="14px Verdana";
-          ctx.fillText(node.name, pt.x-w/2, pt.y + 2*w);
+          ctx.fillStyle = "rgba(0,0,0,1)";
+          if (typeof node.alt != 'undefined') {
+            ctx.fillText(node.alt, pt.x, pt.y + 4*r);
+          } else {
+            ctx.fillText(node.name, pt.x, pt.y + 4*r);
+          }
         })    			
       }
     }
@@ -114,7 +124,7 @@
   }    
 
   $(document).ready(function(){
-    sys = arbor.ParticleSystem(5000, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
+    sys = arbor.ParticleSystem(1000, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
     sys.renderer = DeadSimpleRenderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
   })
 

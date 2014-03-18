@@ -49,7 +49,6 @@ function bindOps(ws_logs) {
   $('#find').unbind();
   $('#delete').unbind();
   $('#range').unbind();
-  $('#file').unbind();
 
   $('#insert').click(function() {
     var i,j,w;
@@ -107,7 +106,83 @@ function bindOps(ws_logs) {
     }
   });
 
-  $('#file').change(function(evt) {
+  $('#close').click(function() {
+    ws.close();
+    $('#if').hide();
+    $('#start_ws').show();
+  });
+}
+
+function sendDeltaTimeOp(list, ws_logs) {
+  if (list.length) {
+    var entry = list.pop();
+    window.setTimeout(function() {
+      if (ws.readyState == WebSocket.OPEN) {
+        ws.send(entry.op);
+        sendDeltaTimeOp(list);
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
+    }, entry.delta);
+  }
+}
+
+function bindSendMessage(ws_logs) {
+  $('#send').unbind();
+
+  $('#send').click(function() {
+    var message = $('#message').val();
+    if (message && ws.readyState == WebSocket.OPEN) {
+      ws.send(message);
+    } else if (ws.readyState == WebSocket.OPEN) {
+      appendMsg(ws_logs, "Missing argument(s)");
+    } else {
+      appendMsg(ws_logs, "WebSocket connection error");
+    }
+  });
+}
+
+function bindGetName(ws_logs) {
+  $('#get_name').unbind();
+
+  $('#get_name').click(function() {
+    if (ws.readyState == WebSocket.OPEN) {
+      sys.eachNode(function(node, pt) {
+        ws.send("NAME_LOOKUP," + node.name);
+      });
+    } else {
+      appendMsg(ws_logs, "WebSocket connection error");
+    }
+  });
+}
+
+function bindLoadNameMap(ws_logs) {
+  $('#name_map').unbind();
+
+  $('#name_map').change(function(evt) {
+    // console.debug(evt.target.files[0]);
+    var f = evt.target.files[0];
+    var reader = new FileReader();
+    reader.onload = function(prog) {
+      var content = prog.target.result;
+      var entries = content.split("\n");
+      if (ws.readyState == WebSocket.OPEN) {
+        $.each(entries, function(idx, entry) {
+          ws.send(entry);
+        });
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
+    };
+    reader.readAsText(f);
+    evt.preventDefault();
+  });
+}
+
+function bindLoadgraph(ws_logs) {
+  $('#load_graph').unbind();
+
+  $('#load_graph').change(function(evt) {
     // console.debug(evt.target.files[0]);
     var f = evt.target.files[0];
     var reader = new FileReader();
@@ -145,46 +220,21 @@ function bindOps(ws_logs) {
     reader.readAsText(f);
     evt.preventDefault();
   });
+}
 
-  $('#close').click(function() {
-    ws.close();
-    $('#if').hide();
-    $('#start_ws').show();
+function wipeGraph() {
+  sys.eachNode(function(node, pt) {
+    sys.pruneNode(node);
   });
-}
-
-function sendDeltaTimeOp(list, ws_logs) {
-  if (list.length) {
-    var entry = list.pop();
-    window.setTimeout(function() {
-      if (ws.readyState == WebSocket.OPEN) {
-        ws.send(entry.op);
-        sendDeltaTimeOp(list);
-      } else {
-        appendMsg(ws_logs, "WebSocket connection error");
-      }
-    }, entry.delta);
-  }
-}
-
-function bindSendMessage(ws_logs) {
-  $('#send').unbind();
-
-  $('#send').click(function() {
-    var message = $('#message').val();
-    if (message && ws.readyState == WebSocket.OPEN) {
-      ws.send(message);
-    } else if (ws.readyState == WebSocket.OPEN) {
-      appendMsg(ws_logs, "Missing argument(s)");
-    } else {
-      appendMsg(ws_logs, "WebSocket connection error");
-    }
+  sys.eachEdge(function(edge, pt1, pt2) {
+    sys.pruneEdge(edge);
   });
 }
 
 function startWS()
 {
   $('#start_ws').hide();
+  wipeGraph();
 
   var ws_logs = $('#ws_logs');
   ws_logs.empty();
@@ -201,6 +251,8 @@ function startWS()
       $('#if').show();
       bindOps(ws_logs);
       bindSendMessage(ws_logs);
+      bindGetName(ws_logs);
+      bindLoadNameMap(ws_logs);
     };
 
     ws.onmessage = function(event) {
@@ -209,15 +261,13 @@ function startWS()
         var result = JSON.parse(msg);
         if (result.op == "RANGE") {
           // Clear graph
-          sys.eachNode(function(node, pt) {
-            sys.pruneNode(node);
-          });
-          sys.eachEdge(function(edge, pt1, pt2) {
-            sys.pruneEdge(edge);
-          });
+          wipeGraph();
           $.each(result.entries, function(idx, entry) {
             sys.addEdge(entry.i, entry.j, {weight: entry.w});
           });
+        } else if (result.op == "NAME_LOOKUP" && result.success == 1) {
+          var node = sys.getNode(result.key);
+          node.alt = result.value;
         }
       } catch (e) {
       }
@@ -240,6 +290,7 @@ function startWS()
 
 <body>
 <h1>WebSocket Graph Server</h1>
+<hr>
 <div id="ws">
   <button id="start_ws" onclick="startWS()">Start connection</button>
 
@@ -247,6 +298,10 @@ function startWS()
   <button id="close">Close connection</button>
 
   <table>
+  <tr>
+    <th align="left">Operations</th>
+    <th align="left">Range Graph</th>
+  </tr>
   <tr>
     <td style="width: 50%">
       <h3>Insert Edge</h3>
@@ -273,15 +328,18 @@ function startWS()
       <button id="range">Find</button>
     </td>
     <td style="width: 50%">
-      <h3>Range Find Graph</h3>
+      <label for="name_map">Upload Name Map</label>
+      <input id="name_map" type="file" name="file"/>
+      <button id="get_name">Use Name</button>
+      <br>
       <canvas id="viewport" width="600" height="300"></canvas>
     </td>
   </tr>
   </table>
 
   <!--
-  <label for="file">Load file</label>
-  <input id="file" type="file" name="file"/>
+  <label for="load_graph">Load file</label>
+  <input id="load_graph" type="file" name="file"/>
   <br>  
   <label for="message">Message</label>
   <input id="message" type="text"/>

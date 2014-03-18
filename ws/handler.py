@@ -65,7 +65,7 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
 
             cmd = msg_parts[1]
 
-            if (cmd in msg_types):
+            if (cmd in graph_ops):
               print "worker received from handler: " + str(msg_parts)
               try:
                 # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
@@ -113,7 +113,7 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
               parts = broker.recv_multipart()
               print "worker got rep from broker"
               print parts
-              if (parts[1] not in msg_types):
+              if (parts[1] not in graph_ops):
                 print "Invalid rep: " + str(parts)
                 continue
 
@@ -132,10 +132,11 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
     broker.close()
 
 # Get broker address from command line arguments
-if len(sys.argv) < 2:
-  print "Need broker frontend address"
+if len(sys.argv) < 3:
+  print "Need broker frontend address and name server address"
   sys.exit()
 broker_url = "tcp://" + sys.argv[1]
+name_url = "tcp://" + sys.argv[2]
 
 sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
 conn = handler.Connection(sender_id, "tcp://127.0.0.1:9999",
@@ -144,8 +145,9 @@ CONNECTION_TIMEOUT=5
 closingMessages={}
 badUnicode=re.compile(u'[\ud800-\udfff]')
 
-msg_types = ["INSERT", "DELETE", "FIND", "RANGE"]
-error_msg = "Usage:\n\t<INSERT,i,j,w>\n\t<DELETE,i,j>\n\t<FIND,i,j>\n\t<RANGE,i1,j1,i2,j2>"
+graph_ops = ["INSERT", "DELETE", "FIND", "RANGE"]
+name_ops = ["NAME_INSERT", "NAME_LOOKUP"]
+error_msg = "Use one of the following: \"INSERT,i,j,w\", \"DELETE,i,j\", \"FIND,i,j\", \"RANGE,i1,j1,i2,j2\""
 
 logf=open('handler.log','wb')
 #logf=open('/dev/null','wb')
@@ -168,6 +170,10 @@ ws_rep.bind(ws_rep_url)
 # Pub socket to broadcast some results to all active clients
 rep_pub = context.socket(zmq.PUB)
 rep_pub.bind(rep_pub_url)
+
+# Connect to name server
+name_server = context.socket(zmq.REQ)
+name_server.connect(name_url)
 
 poller = zmq.Poller()
 poller.register(ws_rep)
@@ -366,8 +372,21 @@ while True:
                 cmd = clnt_ws_req[0]
                 val = clnt_ws_req[1:]
 
-                if (cmd in msg_types):
+                # Graph interface operations
+                if (cmd in graph_ops):
                     ws_req.send_multipart([req.conn_id, cmd] + val)
+
+                # Name server operations; does sync req/rep for now
+                elif (cmd in name_ops):
+                    name_server.send_multipart(clnt_ws_req)
+                    msg_parts = name_server.recv_multipart()
+                    success = struct.unpack('=i', ''.join(msg_parts[1]))
+                    msg_parts[1] = success[0]
+                    
+                    names = ["op", "success", "message", "key", "value"]
+                    key_vals = {names[i]:msg_parts[i]  for i in xrange(len(msg_parts))}
+                    json_msg = json.dumps(key_vals)
+                    conn.reply_websocket(req, json_msg, opcode)
 
                 else:
                     conn.reply_websocket(req, error_msg, opcode)
