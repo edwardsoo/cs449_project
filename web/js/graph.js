@@ -126,7 +126,10 @@
   $(document).ready(function(){
     sys = arbor.ParticleSystem(1000, 100, 0.5); // create the system with sensible repulsion/stiffness/friction
     sys.renderer = DeadSimpleRenderer("#viewport"); // our newly created renderer will have its .init() method called shortly by sys...
-  })
 
+    canvas = $('#viewport')[0];
+    window.addEventListener('resize', resizeCanvas, false);
+    resizeCanvas();
+  })
 
 })(this.jQuery)
