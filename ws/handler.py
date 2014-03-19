@@ -259,7 +259,7 @@ while True:
               names = ["success", "i", "j", "pid"]
 
             key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
-            key_vals["query"] = parts[3]
+            key_vals["op"] = parts[3]
             json_msg = json.dumps(key_vals)
             conn.send(parts[0], parts[1], handler.websocket_response(json_msg))
 
