@@ -38,6 +38,7 @@
 var ws;
 var sys;
 var canvas;
+var last_range;
 
 function appendMsg(ws_logs, msg) {
   ws_logs.append('<li>' + msg + '</li>');
@@ -150,7 +151,6 @@ function bindUseName(ws_logs) {
     if (ws.readyState == WebSocket.OPEN) {
       sys.eachNode(function(node, pt) {
         if (!('alt' in node)) {
-        console.debug(node);
           ws.send("NAME_LOOKUP," + node.name);
         }
       });
@@ -164,7 +164,6 @@ function bindLoadNameMap(ws_logs) {
   $('#name_map').unbind();
 
   $('#name_map').change(function(evt) {
-    // console.debug(evt.target.files[0]);
     var f = evt.target.files[0];
     var reader = new FileReader();
     reader.onload = function(prog) {
@@ -194,7 +193,6 @@ function bindLoadgraph(ws_logs) {
   $('#load_graph').unbind();
 
   $('#load_graph').change(function(evt) {
-    // console.debug(evt.target.files[0]);
     var f = evt.target.files[0];
     var reader = new FileReader();
     reader.onload = function(prog) {
@@ -271,12 +269,33 @@ function startWS()
       var msg = event.data;
       try {
         var result = JSON.parse(msg);
-        if (result.op == "RANGE") {
+
+        if (result.op == "INSERT" && result.success == 1) {
+          if (
+            result.i >= last_range.i1 && result.i <= last_range.i2 &&
+            result.j >= last_range.j1 && result.j <= last_range.j2
+          ) {
+            sys.addEdge(result.i, result.j, {weight: result.weight});
+          }
+
+        } else if (result.op == "DELETE" && result.success == 1) {
+          if (
+            result.i >= last_range.i1 && result.i <= last_range.i2 &&
+            result.j >= last_range.j1 && result.j <= last_range.j2
+          ) {
+            var edges = sys.getEdges(result.i, result.j);
+            $.each(edges, function(idx, edge) {
+              sys.pruneEdge(edge);
+            });
+          }
+        
+        } else if (result.op == "RANGE") {
           // Clear graph
           wipeGraph();
           $.each(result.entries, function(idx, entry) {
             sys.addEdge(entry.i, entry.j, {weight: entry.w});
           });
+          last_range = {'i1':result.i1, 'i2':result.i2, 'j1':result.j1, 'j2':result.j2};
         } else if (result.op == "NAME_LOOKUP" && result.success == 1) {
           var node = sys.getNode(result.key);
           node.alt = result.value;
