@@ -97,7 +97,7 @@
           var show_weight = $('#show_weight');
           if (show_weight.is(':checked')) {
             ctx.fillStyle = "rgba(0,0,0,1)";
-            tmp_pt = pt2.subtract(vec.multiply(dist * 2/3));
+            tmp_pt = pt2.subtract(vec.multiply(dist * 1/3));
             var rounded= Math.round (edge.data.weight * 100) / 100;
             ctx.fillText(rounded, tmp_pt.x, tmp_pt.y);
           }
