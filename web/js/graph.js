@@ -31,7 +31,7 @@
         // the new dimensions
         particleSystem.screenSize(canvas.width, canvas.height);
         // leave an extra 80px of whitespace per side
-        particleSystem.screenPadding(80); 
+        particleSystem.screenPadding(20); 
       },
       
       // 
@@ -90,12 +90,12 @@
           ctx.closePath();
 
           // Label edge with weight
-          /*
-          ctx.fillStyle = "rgba(0,0,0,1)";
-          tmp_pt = pt2.subtract(vec.multiply(2*tri_height + margin));
-          tmp_pt = tmp_pt.add(oth_vec.multiply(margin));
-          ctx.fillText(edge.data.weight, tmp_pt.x, tmp_pt.y);
-          */
+          var show_weight = $('#show_weight');
+          if (show_weight.is(':checked')) {
+            ctx.fillStyle = "rgba(0,0,0,1)";
+            tmp_pt = pt2.subtract(vec.multiply(dist * 2/3));
+            ctx.fillText(edge.data.weight, tmp_pt.x, tmp_pt.y);
+          }
           
         })
 
@@ -109,10 +109,12 @@
           ctx.beginPath();
           ctx.arc(pt.x, pt.y, r, 0, 2*Math.PI);
           ctx.fill();
-          //ctx.fillRect(pt.x-w/2, pt.y-w/2, w,w);
+
+          // Label vertex
+          var use_name = $('#use_name');
           ctx.font="14px Verdana";
           ctx.fillStyle = "rgba(0,0,0,1)";
-          if (typeof node.alt != 'undefined') {
+          if (use_name.is(':checked') && 'alt' in node){
             ctx.fillText(node.alt, pt.x, pt.y + 4*r);
           } else {
             ctx.fillText(node.name, pt.x, pt.y + 4*r);

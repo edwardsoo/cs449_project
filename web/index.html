@@ -143,13 +143,16 @@ function bindSendMessage(ws_logs) {
   });
 }
 
-function bindGetName(ws_logs) {
-  $('#get_name').unbind();
+function bindUseName(ws_logs) {
+  $('#use_name').unbind();
 
-  $('#get_name').click(function() {
+  $('#use_name').change(function() {
     if (ws.readyState == WebSocket.OPEN) {
       sys.eachNode(function(node, pt) {
-        ws.send("NAME_LOOKUP," + node.name);
+        if (!('alt' in node)) {
+        console.debug(node);
+          ws.send("NAME_LOOKUP," + node.name);
+        }
       });
     } else {
       appendMsg(ws_logs, "WebSocket connection error");
@@ -181,8 +184,9 @@ function bindLoadNameMap(ws_logs) {
 }
 
 function resizeCanvas() {
-  canvas.width = canvas.parentElement.offsetWidth;
-  canvas.height = canvas.parentElement.offsetHeight;
+  var ops_div = $('#operations')[0];
+  canvas.width = ops_div.offsetWidth;
+  canvas.height = ops_div.offsetHeight;
   sys.screenSize(canvas.width, canvas.height);
 }
 
@@ -259,7 +263,7 @@ function startWS()
       resizeCanvas();
       bindOps(ws_logs);
       bindSendMessage(ws_logs);
-      bindGetName(ws_logs);
+      bindUseName(ws_logs);
       bindLoadNameMap(ws_logs);
     };
 
@@ -312,6 +316,7 @@ function startWS()
   </tr>
   <tr>
     <td style="width: 50%">
+    <div id="operations">
       <h4>Insert Edge</h4>
       <input id="insert_i" type="text" placeholder="Vertex i"/>
       <input id="insert_j" type="text" placeholder="Vertex j"/>
@@ -334,11 +339,13 @@ function startWS()
       <input id="range_j1" type="text" placeholder="Vertex j lower bound"/> -
       <input id="range_j2" type="text" placeholder="Vertex j upper bound"/>
       <button id="range">Find</button>
+    </div>
     </td>
     <td style="width: 50%">
       <label for="name_map">Upload Name Map</label>
       <input id="name_map" type="file" name="file"/>
-      <button id="get_name">Use Name</button>
+      <input id="use_name" type="checkbox">Use Name</button>
+      <input id="show_weight" type="checkbox">Show Weight</button>
       <br>
       <canvas id="viewport" width="600" height="300"></canvas>
     </td>
