@@ -9,7 +9,7 @@ tmux send-keys 'make clean' 'C-m'
 tmux send-keys 'make' 'C-m'
 tmux split-window -v
 tmux send-keys 'cd broker' 'C-m'
-tmux send-keys './broker 127.0.0.1 22222 33333 127.0.0.1:11111' 'C-m'
+tmux send-keys './broker 127.0.0.1 22222 33333 44444 55555 127.0.0.1:11111' 'C-m'
 tmux split-window -h
 tmux send-keys 'cd broker' 'C-m'
 tmux send-keys './discovery 11111' 'C-m'

@@ -9,6 +9,7 @@ void send_get_response (void*, zhash_t*, zframe_t*, char*);
 
 // Backend address, peer-publish address and list of backends connected
 typedef struct broker {
+  zframe_t *id;
   char *be_addr;
   char *pub_addr;
   zlist_t *backends;
@@ -22,17 +23,32 @@ void broker_free (void *data) {
   }
   free (broker->be_addr);
   free (broker->pub_addr);
+  zframe_destroy (&(broker->id));
   free (broker);
 }
 
-int find_least_used_broker (const char *key, void *item, void *argument) {
+int find_least_used_broker (const char *key, void *item, void *arg) {
   broker_t* broker = (broker_t*) item;
-  broker_t** lu_broker = (broker_t**) argument;
+  broker_t** lu_broker = (broker_t**) arg;
 
   if ((*lu_broker) == NULL ||
       zlist_size((*lu_broker)->backends) > zlist_size (broker->backends)) {
     *lu_broker = broker;
   }
+  return 0;
+}
+
+int zmsg_push_broker_pub_addr (const char *key, void *item, void *arg) {
+  broker_t *broker = (broker_t*) item;
+  zmsg_t *msg = (zmsg_t*) arg;
+  zmsg_pushstr (msg, broker->pub_addr);
+  return 0;
+}
+
+int zlist_push_broker_id (const char *key, void *item, void *arg) {
+  broker_t *broker = (broker_t*) item;
+  zlist_t *ids = (zlist_t*) arg;
+  zlist_push (ids, zframe_dup (broker->id));
   return 0;
 }
 
@@ -80,12 +96,31 @@ int main (int argc, char* argv[]) {
       // Msg: ["ADD"] -> [Broker BE Address] -> [Broker Peer-Pub Address] -> NULL
       broker = malloc (sizeof (broker_t));
       broker->backends = zlist_new ();
+      broker->id = zframe_dup (identity);
       frame = zmsg_pop (msg);
       broker->be_addr = zframe_strdup (frame);
-      // zframe_destroy (&frame);
-      // frame = zmsg_pop (msg);
-      // broker->pub_addr = zframe_strdup (frame);
+      zframe_destroy (&frame);
+      frame = zmsg_pop (msg);
+      broker->pub_addr = zframe_strdup (frame);
 
+      // Tell all existing brokers to subscribe to new broker
+      zlist_t *ids = zlist_new ();
+      zhash_foreach (broker_table, zlist_push_broker_id, ids);
+      while (zlist_size (ids)) {
+        zmsg_t* peer = zmsg_new ();
+        zmsg_pushstr (peer, broker->pub_addr);
+        zmsg_wrap (peer, zlist_pop (ids));
+        zmsg_send (&peer, sock);
+      }
+      zlist_destroy (&ids);
+
+      // Tell bew broker to subscribe to all existing brokers
+      zmsg_t *peers = zmsg_new ();
+      zhash_foreach (broker_table, zmsg_push_broker_pub_addr, peers);
+      zmsg_wrap (peers, zframe_dup (identity));
+      zmsg_send (&peers, sock);
+
+      // Insert new broker into broker table
       rv = zhash_insert (broker_table, broker->be_addr, broker);
       if (rv == -1) {
         printf ("\nDiscovery: broker address %s already in table\n", broker->be_addr);
