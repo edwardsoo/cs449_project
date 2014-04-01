@@ -286,6 +286,12 @@ function startWS()
             var edges = sys.getEdges(result.i, result.j);
             $.each(edges, function(idx, edge) {
               sys.pruneEdge(edge);
+              if (sys.getEdgesFrom(edge.source) == 0 && sys.getEdgesTo(edge.source) == 0) {
+                sys.pruneNode(edge.source);
+              }
+              if (sys.getEdgesFrom(edge.target) == 0 && sys.getEdgesTo(edge.target) == 0) {
+                sys.pruneNode(edge.target);
+              }
             });
           }
         
