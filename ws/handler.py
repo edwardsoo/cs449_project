@@ -28,7 +28,7 @@ def abortConnection(conn,req,reason='none',code=None):
         conn.reply(req,'')
     print >>logf,'abort',code,reason
 
-def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
+def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     context = zmq.Context.instance()
     max_live = 3
     ws_req = context.socket(zmq.SUB)
@@ -38,7 +38,7 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
 
     ws_req.connect(req_url)
     ws_rep.connect(rep_url)
-    broker.connect(broker_url)
+    broker.connect(broker_fe_url)
     rep_sub.connect(pub_url)
     
     ws_req.setsockopt(zmq.SUBSCRIBE, conn_id)
@@ -135,8 +135,9 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_url, pub_url):
 if len(sys.argv) < 3:
   print "Need broker frontend address and name server address"
   sys.exit()
-broker_url = "tcp://" + sys.argv[1]
-name_url = "tcp://" + sys.argv[2]
+broker_fe_url = "tcp://" + sys.argv[1]
+broker_pub_url = "tcp://" + sys.argv[2]
+name_url = "tcp://" + sys.argv[3]
 
 sender_id = "82209006-86FF-4982-B5EA-D1E29E55D480"
 conn = handler.Connection(sender_id, "tcp://127.0.0.1:9999",
@@ -171,6 +172,10 @@ ws_rep.bind(ws_rep_url)
 rep_pub = context.socket(zmq.PUB)
 rep_pub.bind(rep_pub_url)
 
+# Sub socket to listen to results from other brokers
+peer_sub = context.socket(zmq.SUB)
+peer_sub.connect(broker_pub_url)
+
 # Connect to name server
 name_server = context.socket(zmq.REQ)
 name_server.connect(name_url)
@@ -178,6 +183,7 @@ name_server.connect(name_url)
 poller = zmq.Poller()
 poller.register(ws_rep)
 poller.register(conn.reqs)
+poller.register(peer_sub)
 
 while True:
     now=time.time()
@@ -192,6 +198,12 @@ while True:
         print "FAILED RECV"
         ws_req.send("die")
         sys.exit()
+
+    if peer_sub in socks:
+        # Forward message with empty sender_id and conn_id
+        parts = peer_sub.recv_multipart()
+        rep_pub.send_multipart(['', ''] + parts)
+
 
     # Route worker thread messages back to WS client using conn_id & sender_id
     if ws_rep in socks:
@@ -292,7 +304,7 @@ while True:
 
             # Spawn a worker thread to handler client subscriptions
             thread = threading.Thread(target=worker_routine,
-                args=(req.sender, req.conn_id, ws_req_url, ws_rep_url, broker_url, rep_pub_url))
+                args=(req.sender, req.conn_id, ws_req_url, ws_rep_url, broker_fe_url, rep_pub_url))
             thread.start()
             conn.reply_websocket(req, "this is a ping from server", wsutil.OP_PING)
             # conn.reply_websocket(req, "this is a pong from server", wsutil.OP_PONG)
