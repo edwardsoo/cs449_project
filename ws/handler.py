@@ -28,6 +28,35 @@ def abortConnection(conn,req,reason='none',code=None):
         conn.reply(req,'')
     print >>logf,'abort',code,reason
 
+def broker_response_to_key_val(parts):
+	if (parts[0] == "INSERT"):
+	vals = struct.unpack('=4idi', ''.join(parts[1:]))
+	names = ["success", "duplicate", "i", "j", "weight", "pid"]
+
+	elif (parts[0] == "DELETE"):
+	vals = struct.unpack('=4i', ''.join(parts[1:]))
+	names = ["success", "i", "j", "pid"]
+
+	elif (parts[0] == "FIND"):
+	vals = struct.unpack('=3idi', ''.join(parts[1:]))
+	names = ["success", "i", "j", "weight", "pid"]
+
+	else:
+	vals = struct.unpack('=4id2i', ''.join(parts[1:7]+parts[-1:]))
+	names = ["i1", "j1", "i2", "j2", "sum", "num_entries", "pid"]
+	entries = []
+	for i in range(0, vals[5]):
+		entry_idx = 10 + 3*i
+		entry_val = struct.unpack('=2id', ''.join(parts[entry_idx:entry_idx+3]))
+		entries.append({'i':entry_val[0],'j':entry_val[1],'w':entry_val[2]})
+	names.append('entries')
+	vals = vals + tuple([entries])
+
+	key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
+	key_vals["op"] = parts[1]
+	return key_vals
+
+
 def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     context = zmq.Context.instance()
     max_live = 3
@@ -117,6 +146,8 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
                 print "Invalid rep: " + str(parts)
                 continue
 
+              key_vals = broker_response_to_key_val (parts[1:])
+              print key_vals
               ws_rep.send_multipart(ident + ["rep"] + parts[1:])
 
             except Exception as e:
@@ -132,7 +163,7 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     broker.close()
 
 # Get broker address from command line arguments
-if len(sys.argv) < 3:
+if len(sys.argv) < 4:
   print "Need broker frontend address and name server address"
   sys.exit()
 broker_fe_url = "tcp://" + sys.argv[1]
@@ -175,6 +206,7 @@ rep_pub.bind(rep_pub_url)
 # Sub socket to listen to results from other brokers
 peer_sub = context.socket(zmq.SUB)
 peer_sub.connect(broker_pub_url)
+peer_sub.setsockopt(zmq.SUBSCRIBE, '')
 
 # Connect to name server
 name_server = context.socket(zmq.REQ)
@@ -202,6 +234,8 @@ while True:
     if peer_sub in socks:
         # Forward message with empty sender_id and conn_id
         parts = peer_sub.recv_multipart()
+	print "Received from peer:"
+	print parts
         rep_pub.send_multipart(['', ''] + parts)
 
 
@@ -247,7 +281,7 @@ while True:
             # Publish successful insert and delete
             if ((parts[3] == "INSERT" or parts[3] == "DELETE") and vals[0] == 1):
               print "got insert/delete rep"
-              rep_pub.send_multipart(parts)
+              rep_pub.send_multipart(key_vals)
 
             # Send results as JSON
             json_msg = json.dumps(key_vals)
