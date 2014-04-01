@@ -29,32 +29,32 @@ def abortConnection(conn,req,reason='none',code=None):
     print >>logf,'abort',code,reason
 
 def broker_response_to_key_val(parts):
-	if (parts[0] == "INSERT"):
-	vals = struct.unpack('=4idi', ''.join(parts[1:]))
-	names = ["success", "duplicate", "i", "j", "weight", "pid"]
-
-	elif (parts[0] == "DELETE"):
-	vals = struct.unpack('=4i', ''.join(parts[1:]))
-	names = ["success", "i", "j", "pid"]
-
-	elif (parts[0] == "FIND"):
-	vals = struct.unpack('=3idi', ''.join(parts[1:]))
-	names = ["success", "i", "j", "weight", "pid"]
-
-	else:
-	vals = struct.unpack('=4id2i', ''.join(parts[1:7]+parts[-1:]))
-	names = ["i1", "j1", "i2", "j2", "sum", "num_entries", "pid"]
-	entries = []
-	for i in range(0, vals[5]):
-		entry_idx = 10 + 3*i
-		entry_val = struct.unpack('=2id', ''.join(parts[entry_idx:entry_idx+3]))
-		entries.append({'i':entry_val[0],'j':entry_val[1],'w':entry_val[2]})
-	names.append('entries')
-	vals = vals + tuple([entries])
-
-	key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
-	key_vals["op"] = parts[1]
-	return key_vals
+    if (parts[0] == "INSERT"):
+        vals = struct.unpack('=4idi', ''.join(parts[1:]))
+        names = ["success", "duplicate", "i", "j", "weight", "pid"]
+    
+    elif (parts[0] == "DELETE"):
+        vals = struct.unpack('=4i', ''.join(parts[1:]))
+        names = ["success", "i", "j", "pid"]
+    
+    elif (parts[0] == "FIND"):
+        vals = struct.unpack('=3idi', ''.join(parts[1:]))
+        names = ["success", "i", "j", "weight", "pid"]
+    
+    else:
+        vals = struct.unpack('=4id2i', ''.join(parts[1:7]+parts[-1:]))
+        names = ["i1", "j1", "i2", "j2", "sum", "num_entries", "pid"]
+        entries = []
+        for i in range(0, vals[5]):
+            entry_idx = 7 + 3*i
+            entry_val = struct.unpack('=2id', ''.join(parts[entry_idx:entry_idx+3]))
+            entries.append({'i':entry_val[0],'j':entry_val[1],'w':entry_val[2]})
+        names.append('entries')
+        vals = vals + tuple([entries])
+    
+    key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
+    key_vals["op"] = parts[0]
+    return key_vals
 
 
 def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
@@ -95,7 +95,6 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
             cmd = msg_parts[1]
 
             if (cmd in graph_ops):
-              print "worker received from handler: " + str(msg_parts)
               try:
                 # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
                 if (cmd == "INSERT"):
@@ -133,25 +132,21 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
                 break
 
             # Ping WS client
-            # print "Ping connection %s" %(conn_id)
             ws_rep.send_multipart(ident + ["ping"])
             last_ping = datetime.datetime.now()
 
         if broker in socks:
             try:
               parts = broker.recv_multipart()
-              print "worker got rep from broker"
-              print parts
               if (parts[1] not in graph_ops):
                 print "Invalid rep: " + str(parts)
                 continue
 
-              key_vals = broker_response_to_key_val (parts[1:])
-              print key_vals
               ws_rep.send_multipart(ident + ["rep"] + parts[1:])
 
             except Exception as e:
               print e
+
         if rep_sub in socks:
           parts = rep_sub.recv_multipart()
           if (ident != parts[0:2]):
@@ -232,17 +227,16 @@ while True:
         sys.exit()
 
     if peer_sub in socks:
-        # Forward message with empty sender_id and conn_id
+        # Forward message with empty sender_id, conn_id and msg type
         parts = peer_sub.recv_multipart()
-	print "Received from peer:"
-	print parts
-        rep_pub.send_multipart(['', ''] + parts)
+        print "Received from peer:"
+        print parts
+        rep_pub.send_multipart(['', '', ''] + parts)
 
 
     # Route worker thread messages back to WS client using conn_id & sender_id
     if ws_rep in socks:
         parts = ws_rep.recv_multipart()
-        # print parts
         msg_type = parts[2]
 
         if (msg_type == "ping"):
@@ -251,37 +245,11 @@ while True:
 
         elif (msg_type == "rep"):
           try:
-            if (parts[3] == "INSERT"):
-              vals = struct.unpack('=4idi', ''.join(parts[4:]))
-              names = ["success", "duplicate", "i", "j", "weight", "pid"]
-
-            elif (parts[3] == "DELETE"):
-              vals = struct.unpack('=4i', ''.join(parts[4:]))
-              names = ["success", "i", "j", "pid"]
-
-            elif (parts[3] == "FIND"):
-              vals = struct.unpack('=3idi', ''.join(parts[4:]))
-              names = ["success", "i", "j", "weight", "pid"]
-
-            else:
-              vals = struct.unpack('=4id2i', ''.join(parts[4:10]+parts[-1:]))
-              names = ["i1", "j1", "i2", "j2", "sum", "num_entries", "pid"]
-              entries = []
-              for i in range(0, vals[5]):
-                entry_idx = 10 + 3*i
-                entry_val = struct.unpack('=2id', ''.join(parts[entry_idx:entry_idx+3]))
-                entries.append({'i':entry_val[0],'j':entry_val[1],'w':entry_val[2]})
-              names.append('entries')
-              vals = vals + tuple([entries])
-
-            key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
-            key_vals["op"] = parts[3]
-
+            key_vals = broker_response_to_key_val (parts[3:])
 
             # Publish successful insert and delete
-            if ((parts[3] == "INSERT" or parts[3] == "DELETE") and vals[0] == 1):
-              print "got insert/delete rep"
-              rep_pub.send_multipart(key_vals)
+            if ((key_vals["op"] == "INSERT" or key_vals["op"] == "DELETE") and key_vals["success"] == 1):
+              rep_pub.send_multipart(parts)
 
             # Send results as JSON
             json_msg = json.dumps(key_vals)
@@ -292,20 +260,8 @@ while True:
             break;
 
         elif (msg_type == "pub"):
-          print "got pub"
-          print parts
-
           try:
-            if (parts[3] == "INSERT"):
-              vals = struct.unpack('=4idi', ''.join(parts[4:]))
-              names = ["success", "duplicate", "i", "j", "weight", "pid"]
-
-            elif (parts[3] == "DELETE"):
-              vals = struct.unpack('=4i', ''.join(parts[4:]))
-              names = ["success", "i", "j", "pid"]
-
-            key_vals = {names[i]:vals[i]  for i in xrange(len(names))}
-            key_vals["op"] = parts[3]
+            key_vals = broker_response_to_key_val (parts[3:])
             json_msg = json.dumps(key_vals)
             conn.send(parts[0], parts[1], handler.websocket_response(json_msg))
 
