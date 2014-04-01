@@ -150,10 +150,18 @@ int main (int argc, char* argv[])
         pub_msg = zmsg_dup (msg);
         zmsg_send (&msg, frontend);
 
-        // Remove client ID and publish to peer
+        // Remove client ID and publish to peer if successful insert/delete
         identity = zmsg_unwrap (pub_msg);
         zframe_destroy (&identity);
-        zmsg_send (&pub_msg, peer_pub);
+        zframe_t *op = zmsg_first (pub_msg);
+        zframe_t *success = zmsg_next (pub_msg);
+        int *success_int = (int*) zframe_data (success);
+        if ((zframe_streq (op, "INSERT") || zframe_streq (op, "DELETE")) && 
+            *success_int) {
+          zmsg_send (&pub_msg, peer_pub);
+        } else {
+          zmsg_destroy (&pub_msg);
+        }
       }
     }
 
