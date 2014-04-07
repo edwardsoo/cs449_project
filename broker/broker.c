@@ -118,8 +118,8 @@ int main (int argc, char* argv[])
         break;
 
       // Publish to frontend pub socket
-      printf ("Broker: received from peer:\n");
-      zmsg_dump (msg);
+      // printf ("Broker: received from peer:\n");
+      // zmsg_dump (msg);
       zmsg_send (&msg, fe_pub);
     }
 
@@ -132,10 +132,12 @@ int main (int argc, char* argv[])
       if (!msg)
         break;
 
+      zmsg_dump (msg);
+
       // Save worker ID on queue
       identity = zmsg_unwrap (msg);
       zlist_append (workers, identity);
-      zframe_print (identity, "Broker: received from worker ");
+      // zframe_print (identity, "Broker: received from worker ");
 
       // Forward message to client if it’s not a READY
       frame = zmsg_first (msg);
@@ -143,10 +145,18 @@ int main (int argc, char* argv[])
         // Msg format: [READY]
         zmsg_destroy (&msg);
 
+      } else if (zframe_size (frame) == 0) {
+        // No Client ID; meant to be published
+        // Msg format: [] -> [REP]
+        zmsg_remove (msg, frame);
+        pub_msg = zmsg_dup (msg);
+        zmsg_send (&msg, fe_pub);
+        zmsg_send (&pub_msg, peer_pub);
+
       } else {
         // Msg format: [CLIENT ID] -> [] -> [REP]
-        printf ("Broker: routes rep to client\n");
-        zmsg_dump (msg);
+        // printf ("Broker: routes rep to client\n");
+        // zmsg_dump (msg);
         pub_msg = zmsg_dup (msg);
         zmsg_send (&msg, frontend);
 
