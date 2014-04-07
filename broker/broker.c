@@ -23,7 +23,7 @@ int main (int argc, char* argv[])
   void *frontend = zsocket_new (ctx, ZMQ_ROUTER);
   void *backend = zsocket_new (ctx, ZMQ_ROUTER);
   void *fe_pub = zsocket_new (ctx, ZMQ_XPUB);
-  void *peer_sub = zsocket_new (ctx, ZMQ_SUB);
+  void *peer_sub = zsocket_new (ctx, ZMQ_XSUB);
   void *peer_pub = zsocket_new (ctx, ZMQ_PUB);
 
   strcpy (str, TCP_URL "*:");
@@ -84,8 +84,6 @@ int main (int argc, char* argv[])
   // Subscribe to all other brokers
   while ((ptr = zmsg_popstr (msg)) != NULL) {
     zsocket_connect (peer_sub, ptr);
-    zsocket_set_subscribe (peer_sub, "INSERT");
-    zsocket_set_subscribe (peer_sub, "DELETE");
     free (ptr);
   }
   
@@ -94,6 +92,7 @@ int main (int argc, char* argv[])
   
   zmq_pollitem_t items [] = {
     {peer_sub, 0, ZMQ_POLLIN, 0},
+    {fe_pub, 0, ZMQ_POLLIN, 0},
     {backend, 0, ZMQ_POLLIN, 0},
     {disc, 0, ZMQ_POLLIN, 0},
     {frontend, 0, ZMQ_POLLIN, 0}
@@ -103,7 +102,7 @@ int main (int argc, char* argv[])
   printf ("Broker: enters main loop\n");
   while (1) {
     // Poll frontend only if we have available workers
-    int rc = zmq_poll (items, zlist_size (workers)? 4: 3, -1);
+    int rc = zmq_poll (items, zlist_size (workers)? 5: 4, -1);
 
     // Interrupted
     if (rc == -1) {
@@ -124,6 +123,16 @@ int main (int argc, char* argv[])
     }
 
     if (items [1].revents & ZMQ_POLLIN) {
+      // Got sub message from frontend
+      msg = zmsg_recv (fe_pub);
+      if (!msg)
+        break;
+
+      // Set subscription
+      zmsg_send (&msg, peer_sub);
+    }
+
+    if (items [2].revents & ZMQ_POLLIN) {
       // Use worker identity for load-balancing
       // Msg format: [CLIENT ID] -> [] -> [...]
       msg = zmsg_recv (backend);
@@ -175,7 +184,7 @@ int main (int argc, char* argv[])
       }
     }
 
-    if (items [2].revents & ZMQ_POLLIN) {
+    if (items [3].revents & ZMQ_POLLIN) {
       // Got message from discovery
       ptr = zstr_recv (disc);
       if (!ptr)
@@ -188,7 +197,7 @@ int main (int argc, char* argv[])
       free (ptr);
     }
 
-    if (items [3].revents & ZMQ_POLLIN) {
+    if (items [4].revents & ZMQ_POLLIN) {
       // Got client request
       // Msg format: [CLIENT ID] -> [] -> [REQ]
       zmsg_t *msg = zmsg_recv (frontend);

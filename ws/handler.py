@@ -195,13 +195,12 @@ ws_rep = context.socket(zmq.PULL)
 ws_rep.bind(ws_rep_url)
 
 # Pub socket to broadcast some results to all active clients
-rep_pub = context.socket(zmq.PUB)
+rep_pub = context.socket(zmq.XPUB)
 rep_pub.bind(rep_pub_url)
 
 # Sub socket to listen to results from other brokers
-peer_sub = context.socket(zmq.SUB)
+peer_sub = context.socket(zmq.XSUB)
 peer_sub.connect(broker_pub_url)
-peer_sub.setsockopt(zmq.SUBSCRIBE, '')
 
 # Connect to name server
 name_server = context.socket(zmq.REQ)
@@ -210,7 +209,8 @@ name_server.connect(name_url)
 poller = zmq.Poller()
 poller.register(ws_rep)
 poller.register(conn.reqs)
-poller.register(peer_sub)
+poller.register(peer_sub, zmq.POLLIN)
+poller.register(rep_pub, zmq.POLLIN)
 
 while True:
     now=time.time()
@@ -229,9 +229,12 @@ while True:
     if peer_sub in socks:
         # Forward message with empty sender_id, conn_id and msg type
         parts = peer_sub.recv_multipart()
-        print "Received from peer:"
-        print parts
         rep_pub.send_multipart(['', '', ''] + parts)
+
+    if rep_pub in socks:
+        # Subscription traveling upstream
+        parts = rep_pub.recv_multipart()
+        peer_sub.send_multipart(parts)
 
 
     # Route worker thread messages back to WS client using conn_id & sender_id
