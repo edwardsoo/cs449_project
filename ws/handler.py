@@ -212,6 +212,7 @@ poller.register(conn.reqs)
 poller.register(peer_sub, zmq.POLLIN)
 poller.register(rep_pub, zmq.POLLIN)
 
+print "Starting main loop:"
 while True:
     now=time.time()
     logf.flush()

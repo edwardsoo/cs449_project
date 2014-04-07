@@ -5,6 +5,15 @@
 #include "broker.h"
 #define TCP_URL "tcp://"
 
+void zmsg_full_dump (zmsg_t *msg) {
+  printf("--------------------------------------\n");
+  zframe_t *frame = zmsg_first (msg);
+  while (frame) {
+    zframe_fprint (frame, "", stdout);
+    frame = zmsg_next (msg);
+  }
+}
+
 int main (int argc, char* argv[])
 {
   zctx_t *ctx;
@@ -117,8 +126,8 @@ int main (int argc, char* argv[])
         break;
 
       // Publish to frontend pub socket
-      // printf ("Broker: received from peer:\n");
-      // zmsg_dump (msg);
+      printf ("Broker: received from peer:\n");
+      zmsg_dump (msg);
       zmsg_send (&msg, fe_pub);
     }
 
@@ -141,7 +150,7 @@ int main (int argc, char* argv[])
       if (!msg)
         break;
 
-      zmsg_dump (msg);
+      // zmsg_full_dump (msg);
 
       // Save worker ID on queue
       identity = zmsg_unwrap (msg);
@@ -164,8 +173,8 @@ int main (int argc, char* argv[])
 
       } else {
         // Msg format: [CLIENT ID] -> [] -> [REP]
-        // printf ("Broker: routes rep to client\n");
-        // zmsg_dump (msg);
+        printf ("Broker: routes rep to client\n");
+        zmsg_dump (msg);
         pub_msg = zmsg_dup (msg);
         zmsg_send (&msg, frontend);
 
@@ -190,7 +199,7 @@ int main (int argc, char* argv[])
       if (!ptr)
         break;
 
-      printf ("Broker: received new peer address %s\n", ptr);
+      // printf ("Broker: received new peer address %s\n", ptr);
       zsocket_connect (peer_sub, ptr);
       zsocket_set_subscribe (peer_sub, "INSERT");
       zsocket_set_subscribe (peer_sub, "DELETE");
@@ -204,12 +213,12 @@ int main (int argc, char* argv[])
 
       if (msg) {
         printf ("Broker: received req from a client\n");
+        zmsg_dump (msg);
 
         // Route to first available worker
         identity = (zframe_t *) zlist_pop (workers);
         zmsg_wrap (msg, identity);
-        zframe_print (identity, "Broker: route req to worker ");
-        zmsg_dump (msg);
+        // zframe_print (identity, "Broker: route req to worker ");
 
         // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
         zmsg_send (&msg, backend);

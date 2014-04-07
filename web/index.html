@@ -46,6 +46,35 @@ function appendMsg(ws_logs, msg) {
   scroll_div.scrollTop = scroll_div.scrollHeight;
 }
 
+function newFlight(d_lat, d_long, d_time, d_id, a_lat, a_long, a_time, a_id) {
+  return {
+    d_lat: d_lat,
+    d_long: d_long,
+    d_time: d_time,
+    d_id: d_id,
+    a_lat: a_lat,
+    a_long: a_long,
+    a_time: a_time,
+    a_id: a_id
+  }
+}
+
+function validateFlight(f) {
+  return (
+    f.d_lat && f.d_long && f.d_time && f.d_id &&
+    f.a_lat && f.a_long && f.a_time && f.a_id && 
+    !isNaN(f.d_lat) && !isNaN(f.d_long) && !isNaN(f.d_time) && !isNaN(f.d_id) && 
+    !isNaN(f.a_lat) && !isNaN(f.a_long) && !isNaN(f.a_time) && !isNaN(f.a_id)
+  )
+}
+
+function encodeFlight(f) {
+  f.d_lat = (parseFloat(f.d_lat)+360)*1000;
+  f.d_long = (parseFloat(f.d_long)+360)*1000;
+  f.a_lat = (parseFloat(f.a_lat)+360)*1000;
+  f.a_long = (parseFloat(f.a_long)+360)*1000;
+}
+
 function bindOps(ws_logs) {
   $('#insert').unbind();
   $('#find').unbind();
@@ -53,66 +82,122 @@ function bindOps(ws_logs) {
   $('#range').unbind();
 
   $('#insert').click(function() {
-    var i,j,w;
-    i = $('#insert_i').val();
-    j = $('#insert_j').val();
-    w = $('#insert_w').val();
-    if (i && j && w && ws.readyState == WebSocket.OPEN) {
-      var msg  = "INSERT,"+i+","+j+","+w;
-      ws.send(msg);
-    } else if (ws.readyState == WebSocket.OPEN) {
-      appendMsg(ws_logs, "Missing argument(s)");
-    } else {
-      appendMsg(ws_logs, "WebSocket connection error");
-    }
+      var f = newFlight(
+        $('#insert_lat_origin').val(),
+        $('#insert_long_origin').val(),
+        $('#insert_dep_time').val(),
+        $('#insert_dep_airport').val(),
+        $('#insert_lat_dest').val(),
+        $('#insert_long_dest').val(),
+        $('#insert_arr_time').val(),
+        $('#insert_arr_airport').val()
+        );
+      var w = $('#insert_w').val();
+
+      if (
+        ws.readyState == WebSocket.OPEN && validateFlight(f) && w && !isNaN(w))
+      {
+        encodeFlight(f);
+        var msg = ["INSERT", f.d_lat, f.d_long, f.d_time,
+              f.a_lat, f.a_long, f.a_time, f.d_id, f.a_id, w].join();
+        ws.send(msg);
+      } else if (ws.readyState == WebSocket.OPEN) {
+        appendMsg(ws_logs, "Missing/invalid argument(s)");
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
   });
+
   $('#delete').click(function() {
-    var i,j;
-    i = $('#delete_i').val();
-    j = $('#delete_j').val();
-    if (i && j && ws.readyState == WebSocket.OPEN) {
-      var msg  = "DELETE,"+i+","+j;
-      ws.send(msg);
-    } else if (ws.readyState == WebSocket.OPEN) {
-      appendMsg(ws_logs, "Missing argument(s)");
-    } else {
-      appendMsg(ws_logs, "WebSocket connection error");
-    }
+      var f = newFlight(
+        $('#delete_lat_origin').val(),
+        $('#delete_long_origin').val(),
+        $('#delete_dep_time').val(),
+        $('#delete_dep_airport').val(),
+        $('#delete_lat_dest').val(),
+        $('#delete_long_dest').val(),
+        $('#delete_arr_time').val(),
+        $('#delete_arr_airport').val()
+        );
+      if (ws.readyState == WebSocket.OPEN && validateFlight(f)) {
+        encodeFlight(f);
+        var msg = ["DELETE", f.d_lat, f.d_long, f.d_time,
+        f.a_lat, f.a_long, f.a_time, f.d_id, f.a_id].join();
+        ws.send(msg);
+      } else if (ws.readyState == WebSocket.OPEN) {
+        appendMsg(ws_logs, "Missing/invalid argument(s)");
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
   });
+
   $('#find').click(function() {
-    var i,j;
-    i = $('#find_i').val();
-    j = $('#find_j').val();
-    if (i && j && ws.readyState == WebSocket.OPEN) {
-      var msg  = "FIND,"+i+","+j;
-      ws.send(msg);
-    } else if (ws.readyState == WebSocket.OPEN) {
-      appendMsg(ws_logs, "Missing argument(s)");
-    } else {
-      appendMsg(ws_logs, "WebSocket connection error");
-    }
+      var f = newFlight(
+        $('#find_lat_origin').val(),
+        $('#find_long_origin').val(),
+        $('#find_dep_time').val(),
+        $('#find_dep_airport').val(),
+        $('#find_lat_dest').val(),
+        $('#find_long_dest').val(),
+        $('#find_arr_time').val(),
+        $('#find_arr_airport').val()
+        );
+      if (ws.readyState == WebSocket.OPEN && validateFlight(f)) {
+        encodeFlight(f);
+        var msg = ["FIND", f.d_lat, f.d_long, f.d_time,
+              f.a_lat, f.a_long, f.a_time, f.d_id, f.a_id].join();
+        ws.send(msg);
+      } else if (ws.readyState == WebSocket.OPEN) {
+        appendMsg(ws_logs, "Missing/invalid argument(s)");
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
   });
+
   $('#range').click(function() {
-    var i1,j1,i2,j2;
-    i1 = $('#range_i1').val();
-    j1 = $('#range_j1').val();
-    i2 = $('#range_i2').val();
-    j2 = $('#range_j2').val();
-    if (i1 && j1 && j2 && j2 && ws.readyState == WebSocket.OPEN) {
-      var msg  = "RANGE,"+i1+","+j1+","+i2+","+j2;
-      ws.send(msg);
-    } else if (ws.readyState == WebSocket.OPEN) {
-      appendMsg(ws_logs, "Missing argument(s)");
-    } else {
-      appendMsg(ws_logs, "WebSocket connection error");
-    }
+      var f1 = newFlight(
+        $('#range_lat_origin_1').val(),
+        $('#range_long_origin_1').val(),
+        $('#range_dep_time_1').val(),
+        $('#range_dep_airport_1').val(),
+        $('#range_lat_dest_1').val(),
+        $('#range_long_dest_1').val(),
+        $('#range_arr_time_1').val(),
+        $('#range_arr_airport_1').val()
+        );
+      var f2 = newFlight(
+        $('#range_lat_origin_2').val(),
+        $('#range_long_origin_2').val(),
+        $('#range_dep_time_2').val(),
+        $('#range_dep_airport_2').val(),
+        $('#range_lat_dest_2').val(),
+        $('#range_long_dest_2').val(),
+        $('#range_arr_time_2').val(),
+        $('#range_arr_airport_2').val()
+        );
+
+      if (
+          ws.readyState == WebSocket.OPEN && validateFlight(f1) && validateFlight(f2)
+         ) {
+        encodeFlight(f1);
+        encodeFlight(f2);
+        var msg = ["RANGE", f1.d_lat, f1.d_long, f1.d_time, f1.a_lat,
+                    f1.a_long, f1.a_time, f1.d_id, f1.a_id,
+                    f2.d_lat, f2.d_long, f2.d_time, f2.a_lat,
+                    f2.a_long, f2.a_time, f2.d_id, f2.a_id].join();
+        ws.send(msg);
+      } else if (ws.readyState == WebSocket.OPEN) {
+        appendMsg(ws_logs, "Missing/invalide argument(s)");
+      } else {
+        appendMsg(ws_logs, "WebSocket connection error");
+      }
   });
 
   $('#close').click(function() {
-    ws.close();
-    $('#if').hide();
-    $('#start_ws').show();
-  });
+      ws.close();
+      $('#if').hide();
+      $('#start_ws').show();
+      });
 }
 
 function sendDeltaTimeOp(list, ws_logs) {
@@ -240,6 +325,41 @@ function wipeGraph() {
   });
 }
 
+function decodeResult(result) {
+  var t;
+  result.lat_dest = (result.lat_dest/1000 - 360).toFixed(3);
+  result.long_dest = (result.long_dest/1000 - 360).toFixed(3);
+  result.lat_origin = (result.lat_origin/1000 - 360).toFixed(3);
+  result.long_origin = (result.long_origin/1000 - 360).toFixed(3);
+  t = new Date(result.dep_time*1000);
+  result.dep_time = t.toGMTString();
+  t = new Date(result.arr_time*1000);
+  result.arr_time = t.toGMTString();
+}
+
+function decodeRangeResult(result) {
+  var t;
+  t  = new Date(result.dep_time_1*1000);
+  result.dep_time_1 = t.toGMTString();
+  t = new Date(result.arr_time_1*1000);
+  result.arr_time_1 = t.toGMTString();
+  result.lat_dest_1 = (result.lat_dest_1/1000 - 360).toFixed(3);
+  result.long_dest_1 = (result.long_dest_1/1000 - 360).toFixed(3);
+  result.lat_origin_1 = (result.lat_origin_1/1000 - 360).toFixed(3);
+  result.long_origin_1 = (result.long_origin_1/1000 - 360).toFixed(3);
+  t  = new Date(result.dep_time_2*1000);
+  result.dep_time_2 = t.toGMTString();
+  t = new Date(result.arr_time_2*1000);
+  result.arr_time_2 = t.toGMTString();
+  result.lat_dest_2 = (result.lat_dest_2/1000 - 360).toFixed(3);
+  result.long_dest_2 = (result.long_dest_2/1000 - 360).toFixed(3);
+  result.lat_origin_2 = (result.lat_origin_2/1000 - 360).toFixed(3);
+  result.long_origin_2 = (result.long_origin_2/1000 - 360).toFixed(3);
+  $.each(result.entries, function (idx, entry) {
+    decode(entry);
+  });
+}
+
 function startWS()
 {
   $('#start_ws').hide();
@@ -270,45 +390,22 @@ function startWS()
       try {
         var result = JSON.parse(msg);
 
-        if (result.op == "INSERT" && result.success == 1) {
-          if (
-            result.i >= last_range.i1 && result.i <= last_range.i2 &&
-            result.j >= last_range.j1 && result.j <= last_range.j2
-          ) {
-            sys.addEdge(result.i, result.j, {weight: result.weight});
-          }
+        if ("op" in result && result.op != "RANGE") {
+          decodeResult(result);
+        } else if ("op" in result) {
+          decodeRangeResult(result);
+        }
 
-        } else if (result.op == "DELETE" && result.success == 1) {
-          if (
-            result.i >= last_range.i1 && result.i <= last_range.i2 &&
-            result.j >= last_range.j1 && result.j <= last_range.j2
-          ) {
-            var edges = sys.getEdges(result.i, result.j);
-            $.each(edges, function(idx, edge) {
-              sys.pruneEdge(edge);
-              if (sys.getEdgesFrom(edge.source) == 0 && sys.getEdgesTo(edge.source) == 0) {
-                sys.pruneNode(edge.source);
-              }
-              if (sys.getEdgesFrom(edge.target) == 0 && sys.getEdgesTo(edge.target) == 0) {
-                sys.pruneNode(edge.target);
-              }
-            });
-          }
-        
-        } else if (result.op == "RANGE") {
-          // Clear graph
-          wipeGraph();
-          $.each(result.entries, function(idx, entry) {
-            sys.addEdge(entry.i, entry.j, {weight: entry.w});
-          });
-          last_range = {'i1':result.i1, 'i2':result.i2, 'j1':result.j1, 'j2':result.j2};
-        } else if (result.op == "NAME_LOOKUP" && result.success == 1) {
+        if (result.op == "NAME_LOOKUP" && result.success == 1) {
           var node = sys.getNode(result.key);
           node.alt = result.value;
         }
+
+        appendMsg(ws_logs, JSON.stringify(result));
       } catch (e) {
+        console.log(e);
+        appendMsg(ws_logs, msg);
       }
-      appendMsg(ws_logs, msg);
     };
 
     ws.onclose = function() {
@@ -343,29 +440,71 @@ function startWS()
     <td style="width: 50%">
     <div id="operations">
       <h4>Insert Edge</h4>
-      <input id="insert_i" type="text" placeholder="Vertex i"/>
-      <input id="insert_j" type="text" placeholder="Vertex j"/>
+      <input id="insert_lat_origin" type="text" placeholder="Origin latitude"/>
+      <input id="insert_long_origin" type="text" placeholder="Origin longitude"/>
+      <input id="insert_dep_time" type="text" placeholder="Departure time"/>
+      <input id="insert_dep_airport" type="text" placeholder="Departure airport"/>
+      <br>
+      <input id="insert_lat_dest" type="text" placeholder="Destination latitude"/>
+      <input id="insert_long_dest" type="text" placeholder="Destination longitude"/>
+      <input id="insert_arr_time" type="text" placeholder="Arrival time"/>
+      <input id="insert_arr_airport" type="text" placeholder="Arrival airport"/>
+      <br>
       <input id="insert_w" type="text" placeholder="Weight"/>
       <button id="insert">Insert</button>
     
       <h4>Delete Edge</h4>
-      <input id="delete_i" type="text" placeholder="Vertex i"/>
-      <input id="delete_j" type="text" placeholder="Vertex j"/>
+      <input id="delete_lat_origin" type="text" placeholder="Origin latitude"/>
+      <input id="delete_long_origin" type="text" placeholder="Origin longitude"/>
+      <input id="delete_dep_time" type="text" placeholder="Departure time"/>
+      <input id="delete_dep_airport" type="text" placeholder="Departure airport"/>
+      <br>
+      <input id="delete_lat_dest" type="text" placeholder="Destination latitude"/>
+      <input id="delete_long_dest" type="text" placeholder="Destination longitude"/>
+      <input id="delete_arr_time" type="text" placeholder="Arrival time"/>
+      <input id="delete_arr_airport" type="text" placeholder="Arrival airport"/>
       <button id="delete">Delete</button>
     
       <h4>Find Edge</h4>
-      <input id="find_i" type="text" placeholder="Vertex i"/>
-      <input id="find_j" type="text" placeholder="Vertex j"/>
+      <input id="find_lat_origin" type="text" placeholder="Origin latitude"/>
+      <input id="find_long_origin" type="text" placeholder="Origin longitude"/>
+      <input id="find_dep_time" type="text" placeholder="Departure time"/>
+      <input id="find_dep_airport" type="text" placeholder="Departure airport"/>
+      <br>
+      <input id="find_lat_dest" type="text" placeholder="Destination latitude"/>
+      <input id="find_long_dest" type="text" placeholder="Destination longitude"/>
+      <input id="find_arr_time" type="text" placeholder="Arrival time"/>
+      <input id="find_arr_airport" type="text" placeholder="Arrival airport"/>
       <button id="find">Find</button>
     
       <h4>Range Find</h4>
-      <input id="range_i1" type="text" placeholder="Vertex i lower bound"/> -
-      <input id="range_i2" type="text" placeholder="Vertex i upper bound"/><br>
-      <input id="range_j1" type="text" placeholder="Vertex j lower bound"/> -
-      <input id="range_j2" type="text" placeholder="Vertex j upper bound"/>
+      <input id="range_lat_origin_1" type="text" placeholder="Origin latitude L"/> -
+      <input id="range_lat_origin_2" type="text" placeholder="Origin latitude U"/>
+      &nbsp;&nbsp;&nbsp;
+      <input id="range_long_origin_1" type="text" placeholder="Origin longitude L"/> -
+      <input id="range_long_origin_2" type="text" placeholder="Origin longitude U"/>
+      <br>
+      <input id="range_dep_time_1" type="text" placeholder="Departure time L"/> -
+      <input id="range_dep_time_2" type="text" placeholder="Departure time U"/>
+      &nbsp;&nbsp;&nbsp;
+      <input id="range_dep_airport_1" type="text" placeholder="Departure airport L"/> -
+      <input id="range_dep_airport_2" type="text" placeholder="Departure airport U"/>
+      <br>
+      <input id="range_lat_dest_1" type="text" placeholder="Destination latitude L"/> -
+      <input id="range_lat_dest_2" type="text" placeholder="Destination latitude U"/>
+      &nbsp;&nbsp;&nbsp;
+      <input id="range_long_dest_1" type="text" placeholder="Destination longitude L"/> -
+      <input id="range_long_dest_2" type="text" placeholder="Destination longitude U"/>
+      <br>
+      <input id="range_arr_time_1" type="text" placeholder="Arrival time L"/> -
+      <input id="range_arr_time_2" type="text" placeholder="Arrival time U"/>
+      &nbsp;&nbsp;&nbsp;
+      <input id="range_arr_airport_1" type="text" placeholder="Arrival airport L"/> -
+      <input id="range_arr_airport_2" type="text" placeholder="Arrival airport U"/>
       <button id="range">Find</button>
     </div>
     </td>
+
     <td style="width: 50%">
       <label for="name_map">Upload Name Map</label>
       <input id="name_map" type="file" name="file"/>
