@@ -307,7 +307,7 @@ function decodeRangeResult(result) {
   decoded.long_origin_2_dec = (result.long_origin_2/1000 - 360).toFixed(3);
   decoded.entries = [];
   $.each(result.entries, function (idx, entry) {
-    decoded.entries.push(decode(entry));
+    decoded.entries.push(decodeResult(entry));
   });
   decoded.sum = result.sum;
   decoded.num_entries = result.num_entries;
@@ -342,21 +342,29 @@ function startWS()
       var msg = event.data;
       try {
         var result = JSON.parse(msg);
+        var decoded;
 
         if ("op" in result) {
+          if (result.op == "RANGE") {
+            decoded = decodeRangeResult(result);
+            clearMap();
+            $.each(decoded.entries, function(idx, entry) {
+              insertHandler(entry);
+            });
+
+          } else {
+            decoded = decodeResult(result);
+          }
+
           if (result.success == 1 &&
               (result.op == "INSERT" || result.op == "FIND")) {
-            insertHandler(decodeResult(result));
+            insertHandler(decoded);
 
           } else if (result.op == "DELETE" && result.success == 1) {
-            deleteHandler(decodeResult(result));
-
-          } else if (result.op == "RANGE") {
-            clearMap();
-            $.each(result.entries, function(idx, entry) {
-              insertHandler(decodeResult(entry));
-            });
+            deleteHandler(decoded);
           }
+
+          appendMsg(ws_logs, JSON.stringify(decoded));
         }
 
         if (result.op == "NAME_LOOKUP" && result.success == 1) {
@@ -364,9 +372,9 @@ function startWS()
           if (openedInfoWindow && ('anchor' in openedInfoWindow)) {
             createInfoWindow(openedInfoWindow.anchor);
           }
+          appendMsg(ws_logs, JSON.stringify(result));
         }
 
-        appendMsg(ws_logs, JSON.stringify(result));
       } catch (e) {
         console.log(e);
         appendMsg(ws_logs, msg);
@@ -474,7 +482,7 @@ function createInfoWindow(marker) {
   }
 
   var contentString = '<ul class="marker_info">'+
-  '<li>LatLng: '+marker.getPosition().toString()+'</li>'+
+  '<li>LatLng: '+marker.getPosition().toUrlValue(3)+'</li>'+
   '<li>Airport ID: '+marker.airportID+'</li>'+
   ((marker.airportID in airportName)?
    ('<li>Airport Name: '+airportName[marker.airportID]+'</li>'):'')+
@@ -513,9 +521,8 @@ function initMap() {
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
   google.maps.event.addListener(map, "click", function (e) {
     var latLng = e.latLng;
-    var contentString = latLng.toString();
     var infoWindow = new google.maps.InfoWindow({
-      content: contentString,
+      content: latLng.toUrlValue(3),
       position: latLng
     });
     if (openedInfoWindow) {
