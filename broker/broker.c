@@ -43,10 +43,6 @@ void publish (zmsg_t* msg, void* fe_pub, void* peer_pub) {
       *((long long*) zframe_data (arr_lat)),
       *((long long*) zframe_data (arr_lng)));
 
-  printf ("Broker: publish dual replies\n");
-  zmsg_dump (msg);
-  zmsg_dump (msg2);
-
   peer_msg1 = zmsg_dup (msg);
   peer_msg2 = zmsg_dup (msg2);
   zmsg_send (&msg, fe_pub);
@@ -129,8 +125,6 @@ int main (int argc, char* argv[])
   msg = zmsg_recv (disc);
   if (!msg)
     return 1;
-  printf ("Broker: connecting to peers\n");
-  zmsg_dump (msg);
 
   // Subscribe to all other brokers
   while ((ptr = zmsg_popstr (msg)) != NULL) {
@@ -168,8 +162,6 @@ int main (int argc, char* argv[])
         break;
 
       // Publish to frontend pub socket
-      printf ("Broker: received from peer:\n");
-      zmsg_dump (msg);
       zmsg_send (&msg, fe_pub);
     }
 
@@ -230,8 +222,6 @@ int main (int argc, char* argv[])
             !(*success_val)) {
           // Route back to client if FIND/RANGE or unsuccessful INSERT/DELETE
           zmsg_wrap (msg, identity);
-          printf ("Broker: routes rep to client\n");
-          zmsg_dump (msg);
           zmsg_send (&msg, frontend);
         }
       }
@@ -256,9 +246,6 @@ int main (int argc, char* argv[])
       zmsg_t *msg = zmsg_recv (frontend);
 
       if (msg) {
-        printf ("Broker: received req from a client\n");
-        zmsg_dump (msg);
-
         // Route to first available worker
         identity = (zframe_t *) zlist_pop (workers);
         zmsg_wrap (msg, identity);

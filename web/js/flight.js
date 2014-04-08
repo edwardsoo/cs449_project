@@ -3,6 +3,8 @@ var map;
 var openedInfoWindow;
 var flightsHash = {};
 var airportName = {};
+var markers = [];
+var polylines = [];
 
 function appendMsg(ws_logs, msg) {
   var scroll = ws_logs.parent()[0];
@@ -199,22 +201,6 @@ function bindSendMessage(ws_logs) {
   });
 }
 
-function bindUseName(ws_logs) {
-  $('#use_name').unbind();
-
-  $('#use_name').change(function() {
-    if (ws.readyState == WebSocket.OPEN) {
-      sys.eachNode(function(node, pt) {
-        if (!('alt' in node)) {
-          ws.send("NAME_LOOKUP," + node.name);
-        }
-      });
-    } else {
-      appendMsg(ws_logs, "WebSocket connection error");
-    }
-  });
-}
-
 function bindLoadNameMap(ws_logs) {
   $('#name_map').unbind();
 
@@ -224,9 +210,11 @@ function bindLoadNameMap(ws_logs) {
     reader.onload = function(prog) {
       var content = prog.target.result;
       var entries = content.split("\n");
+      entries.pop();
       if (ws.readyState == WebSocket.OPEN) {
         $.each(entries, function(idx, entry) {
-          ws.send(entry);
+          var values = entry.split(",")
+          ws.send("NAME_INSERT,"+values[0]+","+values[1]);
         });
       } else {
         appendMsg(ws_logs, "WebSocket connection error");
@@ -346,7 +334,6 @@ function startWS()
       $('#if').show();
       bindOps(ws_logs);
       bindSendMessage(ws_logs);
-      bindUseName(ws_logs);
       bindLoadNameMap(ws_logs);
       initMap();
     };
@@ -373,8 +360,10 @@ function startWS()
         }
 
         if (result.op == "NAME_LOOKUP" && result.success == 1) {
-          var node = sys.getNode(result.key);
-          node.alt = result.value;
+          airportName[result.key] = result.value;
+          if (openedInfoWindow && ('anchor' in openedInfoWindow)) {
+            createInfoWindow(openedInfoWindow.anchor);
+          }
         }
 
         appendMsg(ws_logs, JSON.stringify(result));
@@ -396,6 +385,7 @@ function startWS()
 }
 
 function insertHandler(result) {
+
   var origin = createInfoMarker(result.lat_origin, result.long_origin,
       result.dep_time, result.airport_origin);
 
@@ -409,7 +399,7 @@ function insertHandler(result) {
 
   var polyOptions= {
     strokeColor: '#0000FF',
-    strokeOpacity: 0.5,
+    strokeOpacity: 0.3,
     strokeWeight: 1,
     geodesic: true,
     map: map,
@@ -429,35 +419,45 @@ function insertHandler(result) {
       "long_dest", "arr_time", "airport_origin", "airport_dest"];
 
   var flight = subhash(result, flightKeys);
+  var key = JSON.stringify(flight);
 
-  flightsHash[JSON.stringify(flight)] = {
-    origin_marker: origin,
-    dest_marker: dest,
-    polyline: poly
-  };
+  if (!(key in flightsHash)) {
+    flightsHash[JSON.stringify(flight)] = {
+      origin_marker: origin,
+      dest_marker: dest,
+      polyline: poly
+    };
+  }
+  markers.push(origin);
+  markers.push(dest);
+  polylines.push(poly); 
 }
 
 function deleteHandler(result) {
   var flightKeys = ["lat_origin", "long_origin", "dep_time", "lat_dest",
       "long_dest", "arr_time", "airport_origin", "airport_dest"];
   var flight = subhash(result, flightKeys);
-  var code = JSON.stringify(flight);
-  if (code in flightsHash) {
-    var value = flightsHash[code];
-    value.origin_marker.setMap(null);
-    value.dest_marker.setMap(null);
-    value.polyline.setMap(null);
-    delete flightsHash[code];
-  }
-}
-
-function clearMap() {
-  $.each(flightsHash, function(key, value) {
+  var key = JSON.stringify(flight);
+  if (key in flightsHash) {
+    var value = flightsHash[key];
     value.origin_marker.setMap(null);
     value.dest_marker.setMap(null);
     value.polyline.setMap(null);
     delete flightsHash[key];
+  }
+}
+
+function clearMap() {
+  var temp = ws.onmessage;
+  ws.onmessage = null;
+  $.each(markers, function(idx, marker) {
+    marker.setMap(null);
   });
+  $.each(polylines, function(idx, poly) {
+    poly.setMap(null);
+  });
+  flightsHash = {};
+  ws.onmessage = temp;
 }
 
 function subhash(source, keys) {
@@ -466,6 +466,28 @@ function subhash(source, keys) {
     newObject[key] = source[key];
   });
   return newObject;
+}
+
+function createInfoWindow(marker) {
+  if (!(marker.airportID in airportName)) {
+    ws.send("NAME_LOOKUP," + marker.airportID);
+  }
+
+  var contentString = '<ul class="marker_info">'+
+  '<li>LatLng: '+marker.getPosition().toString()+'</li>'+
+  '<li>Airport ID: '+marker.airportID+'</li>'+
+  ((marker.airportID in airportName)?
+   ('<li>Airport Name: '+airportName[marker.airportID]+'</li>'):'')+
+  '</ul>';
+
+  var infoWindow = new google.maps.InfoWindow({
+    content: contentString
+  });
+  if (openedInfoWindow) {
+    openedInfoWindow.close();
+  }
+  infoWindow.open(map, marker);
+  openedInfoWindow = infoWindow;
 }
 
 function createInfoMarker(lat, lng, timeStr, airportID) {
@@ -477,20 +499,7 @@ function createInfoMarker(lat, lng, timeStr, airportID) {
   });
 
   google.maps.event.addListener(marker, "click", function() {
-    var contentString = '<ul class="m_ul">'+
-    '<li class="m_li">LatLng: ('+lat+', '+lng+')</li>'+
-    '<li class="m_li">Airport ID: '+marker.airportID+'</li>'+
-    //'<li class="m_li">Time: '+marker.gmtString+'</li>'+
-    '</ul>';
-
-    var infoWindow = new google.maps.InfoWindow({
-      content: contentString
-    });
-    if (openedInfoWindow) {
-      openedInfoWindow.close();
-    }
-    infoWindow.open(map, marker);
-    openedInfoWindow = infoWindow;
+    createInfoWindow(marker);
   });
 
   return marker;
@@ -502,4 +511,17 @@ function initMap() {
     center: new google.maps.LatLng(39.50, -98.35)
   }
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+  google.maps.event.addListener(map, "click", function (e) {
+    var latLng = e.latLng;
+    var contentString = latLng.toString();
+    var infoWindow = new google.maps.InfoWindow({
+      content: contentString,
+      position: latLng
+    });
+    if (openedInfoWindow) {
+      openedInfoWindow.close();
+    }
+    infoWindow.open(map);
+    openedInfoWindow = infoWindow;
+  });
 }

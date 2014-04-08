@@ -83,7 +83,7 @@ def flight_orig_dest(key):
 
 def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     context = zmq.Context.instance()
-    max_live = 3
+    max_live = 5
     ws_req = context.socket(zmq.SUB)
     ws_rep = context.socket(zmq.PUSH)
     broker = context.socket(zmq.DEALER)
@@ -167,7 +167,7 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
 
         # Poll timeout, no input from client
         elif (datetime.datetime.now() >
-                    last_ping + datetime.timedelta(seconds=1)):
+                    last_ping + datetime.timedelta(seconds=6)):
             liveness = liveness - 1
 
             # No response to pings, assume client is dead
