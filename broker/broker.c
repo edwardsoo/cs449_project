@@ -14,11 +14,53 @@ void zmsg_full_dump (zmsg_t *msg) {
   }
 }
 
+// Publish a successful INSERT/DELETE to both frontend and peer with 2 prefixes
+void publish (zmsg_t* msg, void* fe_pub, void* peer_pub) {
+  zmsg_t *msg2, *peer_msg1, *peer_msg2;
+  zframe_t *op, *dep_lat, *dep_lng, *arr_lat, *arr_lng;
+  char *op_str;
+
+  op = zmsg_first (msg);
+  op_str = zframe_strdup (op);
+
+  if (zframe_streq (op, "INSERT")) {
+    zmsg_next (msg);
+  }
+  zmsg_next (msg);
+  dep_lat = zmsg_next (msg);
+  dep_lng = zmsg_next (msg);
+  zmsg_next (msg); // departure time
+  arr_lat = zmsg_next (msg);
+  arr_lng = zmsg_next (msg);
+
+  msg2 = zmsg_dup (msg);
+  zmsg_pushstr (msg, "(%ld,%ld)->(%ld,%ld)%s",
+      *((long long*) zframe_data (dep_lat)),
+      *((long long*) zframe_data (dep_lng)),
+      *((long long*) zframe_data (arr_lat)),
+      *((long long*) zframe_data (arr_lng)), op_str);
+  zmsg_pushstr (msg2, "(%ld,%ld)",
+      *((long long*) zframe_data (arr_lat)),
+      *((long long*) zframe_data (arr_lng)));
+
+  printf ("Broker: publish dual replies\n");
+  zmsg_dump (msg);
+  zmsg_dump (msg2);
+
+  peer_msg1 = zmsg_dup (msg);
+  peer_msg2 = zmsg_dup (msg2);
+  zmsg_send (&msg, fe_pub);
+  zmsg_send (&msg2, fe_pub);
+  zmsg_send (&peer_msg1, peer_pub);
+  zmsg_send (&peer_msg2, peer_pub);
+  free (op_str);
+}
+
 int main (int argc, char* argv[])
 {
   zctx_t *ctx;
   zframe_t *identity, *frame;
-  zmsg_t *msg, *pub_msg;
+  zmsg_t *msg;
   char str[0x100], *ptr;
 
   if (argc != 7) {
@@ -167,28 +209,30 @@ int main (int argc, char* argv[])
         // No Client ID; meant to be published
         // Msg format: [] -> [REP]
         zmsg_remove (msg, frame);
-        pub_msg = zmsg_dup (msg);
-        zmsg_send (&msg, fe_pub);
-        zmsg_send (&pub_msg, peer_pub);
+        publish (msg, fe_pub, peer_pub);
 
       } else {
         // Msg format: [CLIENT ID] -> [] -> [REP]
-        printf ("Broker: routes rep to client\n");
-        zmsg_dump (msg);
-        pub_msg = zmsg_dup (msg);
-        zmsg_send (&msg, frontend);
 
-        // Remove client ID and publish to peer if successful insert/delete
-        identity = zmsg_unwrap (pub_msg);
-        zframe_destroy (&identity);
-        zframe_t *op = zmsg_first (pub_msg);
-        zframe_t *success = zmsg_next (pub_msg);
-        int *success_int = (int*) zframe_data (success);
-        if ((zframe_streq (op, "INSERT") || zframe_streq (op, "DELETE")) && 
-            *success_int) {
-          zmsg_send (&pub_msg, peer_pub);
-        } else {
-          zmsg_destroy (&pub_msg);
+        identity = zmsg_unwrap (msg);
+        zframe_t *op, *success;
+        op = zmsg_first (msg);
+        success = zmsg_next (msg);
+        int *success_val = (int*) zframe_data (success);
+
+        if ((zframe_streq (op, "INSERT") || zframe_streq (op, "DELETE")) &&
+            *success_val) {
+          // Publish 2 msgs to both frontend and peer if success INSERT/DELETE
+          publish (msg, fe_pub, peer_pub);
+          zframe_destroy (&identity);
+
+        } else if (zframe_streq (op, "FIND") || zframe_streq (op, "RANGE") ||
+            !(*success_val)) {
+          // Route back to client if FIND/RANGE or unsuccessful INSERT/DELETE
+          zmsg_wrap (msg, identity);
+          printf ("Broker: routes rep to client\n");
+          zmsg_dump (msg);
+          zmsg_send (&msg, frontend);
         }
       }
     }

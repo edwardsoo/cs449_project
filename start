@@ -17,4 +17,4 @@ tmux split-window -h -t 1
 tmux send-keys 'cd broker' 'C-m'
 tmux send-keys './name_server 66666' 'C-m'
 tmux split-window -h -t 0
-tmux send-keys 'python ws/handler.py 127.0.0.1:22222 127.0.0.1:44444 127.0.0.1:66666' 'C-m'
+tmux send-keys 'python ws/demo.py 127.0.0.1:22222 127.0.0.1:44444 127.0.0.1:66666' 'C-m'

@@ -17,6 +17,7 @@ from ctypes import create_string_buffer
 from ctypes import c_uint
 from ctypes import c_double
 from ctypes import c_longlong
+from collections import Counter
 
 
 def abortConnection(conn,req,reason='none',code=None):
@@ -70,6 +71,15 @@ def broker_response_to_key_val(parts):
     key_vals["op"] = parts[0]
     return key_vals
 
+def flight_key(rep):
+    key = (rep["lat_origin"],rep["long_origin"],rep["dep_time"],rep["lat_dest"],
+        rep["long_dest"],rep["arr_time"],rep["airport_origin"],rep["airport_dest"])
+    return key
+
+def flight_orig_dest(key):
+    origin = "(%d,%d)" %(key[0], key[1])
+    dest = "(%d,%d)" %(key[3], key[4])
+    return (origin, dest)
 
 def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     context = zmq.Context.instance()
@@ -86,7 +96,6 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     
     ws_req.setsockopt(zmq.SUBSCRIBE, conn_id)
     ws_req.setsockopt(zmq.SUBSCRIBE, "die")
-    rep_sub.setsockopt(zmq.SUBSCRIBE, '')
 
     poller = zmq.Poller()
     poller.register(broker, zmq.POLLIN)
@@ -96,37 +105,56 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
     ident = [sender, conn_id]
     liveness = max_live
     last_ping = datetime.datetime.now()
+    pending_insert = []
+    pending_delete = []
+    flight_count = Counter()
 
     print "Starting thread for connection %s" %(conn_id)
 
     while True:
         socks = dict(poller.poll(timeout = 5000))
         if ws_req in socks:
-            msg_parts = ws_req.recv_multipart(zmq.NOBLOCK)
-            if (msg_parts[0] == "die"):
+            parts = ws_req.recv_multipart(zmq.NOBLOCK)
+            if (parts[0] == "die"):
               break
 
-            cmd = msg_parts[1]
+            cmd = parts[1]
 
             if (cmd in graph_ops):
-              print "ws request:"
-              print msg_parts
               try:
                 if (cmd == "INSERT"):
-                  num_args = map(c_longlong, map(int, msg_parts[2:10]))
-                  num_args.append(c_double(float(msg_parts[10])))
+                  int_args = map(int, parts[2:10])
+
+                  insert_prefix = "(%d,%d)->(%d,%d)INSERT" %(int_args[0],
+                      int_args[1], int_args[3], int_args[4])
+                  pending_insert.append(tuple(int_args))
+                  rep_sub.setsockopt(zmq.SUBSCRIBE, insert_prefix);
+
+                  ctype_args = map(c_longlong, int_args)
+                  ctype_args.append(c_double(float(parts[10])))
+
+                elif (cmd == "DELETE"):
+                  int_args = map(int, parts[2:])
+
+                  delete_prefix = "(%d,%d)->(%d,%d)DELETE" %(int_args[0],
+                      int_args[1], int_args[3], int_args[4])
+                  pending_delete.append(tuple(int_args))
+                  rep_sub.setsockopt(zmq.SUBSCRIBE, delete_prefix);
+
+                  ctype_args = map(c_longlong, map(int, parts[2:]))
+
                 else:
-                  num_args = map(c_longlong, map(int, msg_parts[2:]))
+                  ctype_args = map(c_longlong, map(int, parts[2:]))
 
                 # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
                 broker.send('', zmq.SNDMORE)
                 cmd_cstr = create_string_buffer(cmd, len(cmd));
                 broker.send(cmd_cstr, zmq.SNDMORE)
-                broker.send_multipart(num_args)
+                broker.send_multipart(ctype_args)
 
               except Exception as e:
                 print e
-                print "Bad numeric arguments:" + str(msg_parts)
+                print "Bad numeric arguments:" + str(parts)
 
               
             elif (cmd == "pong"):
@@ -155,19 +183,95 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
         if broker in socks:
             try:
               parts = broker.recv_multipart()
+
               if (parts[1] not in graph_ops):
                 print "Invalid rep: " + str(parts)
                 continue
 
-              ws_rep.send_multipart(ident + ["rep"] + parts[1:])
+              rep = broker_response_to_key_val(parts[1:])
+
+              if (rep["op"] == "RANGE"):
+                  # Unsubscribe from all pending INSERT/DELETE
+                  for key in pending_insert:
+                      insert_prefix = "(%d,%d)->(%d,%d)INSERT" %(key[0],
+                          key[1], key[3], key[4])
+                      rep_sub.setsockopt(zmq.UNSUBSCRIBE, insert_prefix)
+                      pending_insert.remove(key)
+
+                  for key in pending_delete:
+                      delete_prefix = "(%d,%d)->(%d,%d)DELETE" %(key[0],
+                          key[1], key[3], key[4])
+                      rep_sub.setsockopt(zmq.UNSUBSCRIBE, delete_prefix)
+                      pending_delete.remove(key)
+
+                  # Unsubscribe from all node of last RANGE; reset edge counter
+                  for orig_dest in flight_count.keys():
+                      for i in xrange(flight_count[orig_dest]):
+                          rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[0])
+                          rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[1])
+                  flight_count.clear()
+
+                  for entry in rep["entries"]:
+                      key = flight_key(entry);
+                      orig_dest = flight_orig_dest(key);
+                      rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[0])
+                      rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[1])
+                      flight_count[orig_dest] += 1
+
+              ws_rep.send_multipart(ident + ["rep", json.dumps(rep)])
 
             except Exception as e:
               print e
 
         if rep_sub in socks:
           parts = rep_sub.recv_multipart()
-          if (ident != parts[0:2]):
-            ws_rep.send_multipart(ident + ["pub"] + parts[3:])
+          rep = broker_response_to_key_val(parts[1:])
+
+          if (rep["op"] == "INSERT"):
+              key = flight_key(rep);
+              orig_dest = flight_orig_dest(key)
+
+              # If a range query graph is in place,
+              # subscribe to both endpoints and expand open graph
+              if flight_count:
+                  rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[0])
+                  rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[1])
+                  flight_count[orig_dest] += 1
+                  ws_rep.send_multipart(ident + ["rep", json.dumps(rep)])
+
+              # If this is a pending INSERT response,
+              # unsubscribe from future INSERT response with the same keys
+              # subscibe for DELETE of this key
+              elif rep["op"] == "INSERT" and key in pending_insert:
+                  rep_sub.setsockopt(zmq.UNSUBSCRIBE,
+                      orig_dest[0] + "->" + orig_dest[1] + "INSERT")
+                  rep_sub.setsockopt(zmq.SUBSCRIBE,
+                      orig_dest[0] + "->" + orig_dest[1] + "DELETE")
+                  pending_insert.remove(key)
+                  pending_delete.append(key)
+                  ws_rep.send_multipart(ident + ["rep", json.dumps(rep)])
+
+
+          if (rep["op"] == "DELETE"):
+              key = flight_key(rep);
+              orig_dest = flight_orig_dest(key)
+
+              # If a range query is in place,
+              # unsubscribe from both endpoints and shrink open graph
+              if flight_count and flight_count[orig_dest]:
+                  rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[0])
+                  rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[1])
+                  flight_count[orig_dest] -= 1
+                  ws_rep.send_multipart(ident + ["rep", json.dumps(rep)])
+
+              # If this is a pending DELETE response,
+              # unsubscribe from future response with the same keys
+              elif rep["op"] == "DELETE" and key in pending_delete:
+                  print "got pending delete"
+                  rep_sub.setsockopt(zmq.UNSUBSCRIBE,
+                      orig_dest[0] + "->" + orig_dest[1] + "DELETE")
+                  pending_delete.remove(key)
+                  ws_rep.send_multipart(ident + ["rep", json.dumps(rep)])
 
     # Close sockets
     ws_req.close()
@@ -246,11 +350,9 @@ while True:
         sys.exit()
 
     if peer_sub in socks:
-        # Forward message with empty sender_id, conn_id and msg type
+        # Forward message
         parts = peer_sub.recv_multipart()
-        print "peer_sub:"
-        print parts
-        rep_pub.send_multipart(['', '', ''] + parts)
+        rep_pub.send_multipart(parts)
 
     if rep_pub in socks:
         # Subscription traveling upstream
@@ -269,29 +371,14 @@ while True:
 
         elif (msg_type == "rep"):
           try:
-            key_vals = broker_response_to_key_val (parts[3:])
-
-            # Publish successful insert and delete
-            if ((key_vals["op"] == "INSERT" or key_vals["op"] == "DELETE") and key_vals["success"] == 1):
-              rep_pub.send_multipart(parts)
-
-            # Send results as JSON
-            json_msg = json.dumps(key_vals)
-            conn.send(parts[0], parts[1], handler.websocket_response(json_msg))
+            conn.send(parts[0], parts[1], handler.websocket_response(parts[3]))
 
           except Exception as e:
             print e
             break;
 
         elif (msg_type == "pub"):
-          try:
-            key_vals = broker_response_to_key_val (parts[3:])
-            json_msg = json.dumps(key_vals)
-            conn.send(parts[0], parts[1], handler.websocket_response(json_msg))
-
-          except Exception as e:
-            print e
-            break;
+          print "WTF?"
 
         elif (msg_type == "close"):
             conn.send(parts[0], parts[1],

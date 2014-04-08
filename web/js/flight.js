@@ -36,10 +36,10 @@ function validateFlight(f) {
 }
 
 function encodeFlight(f) {
-  f.d_lat = (parseFloat(f.d_lat)+360)*1000;
-  f.d_long = (parseFloat(f.d_long)+360)*1000;
-  f.a_lat = (parseFloat(f.a_lat)+360)*1000;
-  f.a_long = (parseFloat(f.a_long)+360)*1000;
+  f.d_lat = Math.round((parseFloat(f.d_lat)+360)*1000);
+  f.d_long = Math.round((parseFloat(f.d_long)+360)*1000);
+  f.a_lat = Math.round((parseFloat(f.a_lat)+360)*1000);
+  f.a_long = Math.round((parseFloat(f.a_long)+360)*1000);
 }
 
 function bindOps(ws_logs) {
@@ -122,25 +122,26 @@ function bindOps(ws_logs) {
   });
 
   $('#range').click(function() {
+      var MAX_C_LONG_LONG = '9223372036854775807';
       var f1 = newFlight(
         $('#range_lat_origin_1').val(),
         $('#range_long_origin_1').val(),
-        $('#range_dep_time_1').val(),
-        $('#range_dep_airport_1').val(),
+        '0', //$('#range_dep_time_1').val(),
+        '0', //$('#range_dep_airport_1').val(),
         $('#range_lat_dest_1').val(),
         $('#range_long_dest_1').val(),
-        $('#range_arr_time_1').val(),
-        $('#range_arr_airport_1').val()
+        '0', //$('#range_arr_time_1').val(),
+        '0' //$('#range_arr_airport_1').val()
         );
       var f2 = newFlight(
         $('#range_lat_origin_2').val(),
         $('#range_long_origin_2').val(),
-        $('#range_dep_time_2').val(),
-        $('#range_dep_airport_2').val(),
+        MAX_C_LONG_LONG, //$('#range_dep_time_2').val(),
+        MAX_C_LONG_LONG, //$('#range_dep_airport_2').val(),
         $('#range_lat_dest_2').val(),
         $('#range_long_dest_2').val(),
-        $('#range_arr_time_2').val(),
-        $('#range_arr_airport_2').val()
+        MAX_C_LONG_LONG, //$('#range_arr_time_2').val(),
+        MAX_C_LONG_LONG //$('#range_arr_airport_2').val()
         );
 
       if (
@@ -148,11 +149,13 @@ function bindOps(ws_logs) {
          ) {
         encodeFlight(f1);
         encodeFlight(f2);
-        var msg = ["RANGE", f1.d_lat, f1.d_long, f1.d_time, f1.a_lat,
+        var msg = ["RANGE",
+                    f1.d_lat, f1.d_long, f1.d_time, f1.a_lat,
                     f1.a_long, f1.a_time, f1.d_id, f1.a_id,
                     f2.d_lat, f2.d_long, f2.d_time, f2.a_lat,
                     f2.a_long, f2.a_time, f2.d_id, f2.a_id].join();
         ws.send(msg);
+
       } else if (ws.readyState == WebSocket.OPEN) {
         appendMsg(ws_logs, "Missing/invalide argument(s)");
       } else {
@@ -364,7 +367,7 @@ function startWS()
           } else if (result.op == "RANGE") {
             clearMap();
             $.each(result.entries, function(idx, entry) {
-              inserHandler(decodeResult(entry));
+              insertHandler(decodeResult(entry));
             });
           }
         }
@@ -495,8 +498,8 @@ function createInfoMarker(lat, lng, timeStr, airportID) {
 
 function initMap() {
   var mapOptions = {
-    zoom: 2,
-    center: new google.maps.LatLng(0,180)
+    zoom: 4,
+    center: new google.maps.LatLng(39.50, -98.35)
   }
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
 }

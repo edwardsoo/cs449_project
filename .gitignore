@@ -7,3 +7,4 @@
 handler.log
 /ws/*.pyc
 config.sqlite
+/graph/GraphScript/GraphRead
