@@ -2,6 +2,7 @@ var ws;
 var map;
 var openedInfoWindow;
 var flightsHash = {};
+var airportName = {};
 
 function appendMsg(ws_logs, msg) {
   var scroll = ws_logs.parent()[0];
@@ -315,7 +316,7 @@ function decodeRangeResult(result) {
   decoded.long_origin_2_dec = (result.long_origin_2/1000 - 360).toFixed(3);
   decoded.entries = [];
   $.each(result.entries, function (idx, entry) {
-    decode.entries.push(decode(entry));
+    decoded.entries.push(decode(entry));
   });
   decoded.sum = result.sum;
   decoded.num_entries = result.num_entries;
@@ -352,21 +353,20 @@ function startWS()
       try {
         var result = JSON.parse(msg);
 
-        if ("op" in result && result.op != "RANGE") {
-          var decoded = decodeResult(result);
-
-          if (result.op == "INSERT" && result.success == 1) {
-            insertHandler(decoded);
+        if ("op" in result) {
+          if (result.success == 1 &&
+              (result.op == "INSERT" || result.op == "FIND")) {
+            insertHandler(decodeResult(result));
 
           } else if (result.op == "DELETE" && result.success == 1) {
-            deleteHandler(decoded);
-          }
+            deleteHandler(decodeResult(result));
 
-        } else if ("op" in result) {
-          decodeRangeResult(result);
-          $.each(result.entries, function(idx, entry) {
-            inserHandler(entry);
-          });
+          } else if (result.op == "RANGE") {
+            clearMap();
+            $.each(result.entries, function(idx, entry) {
+              inserHandler(decodeResult(entry));
+            });
+          }
         }
 
         if (result.op == "NAME_LOOKUP" && result.success == 1) {
@@ -395,12 +395,15 @@ function startWS()
 function insertHandler(result) {
   var origin = createInfoMarker(result.lat_origin, result.long_origin,
       result.dep_time, result.airport_origin);
+
   var dest = createInfoMarker(result.lat_dest, result.long_dest,
       result.arr_time, result.airport_dest);
+
   var arrowSymbol = {
     path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
     scale: 1.5
   };
+
   var polyOptions= {
     strokeColor: '#0000FF',
     strokeOpacity: 0.5,
@@ -412,13 +415,18 @@ function insertHandler(result) {
       repeat: '50px'
     }]
   };
+
   var poly = new google.maps.Polyline(polyOptions);
+
   var path = [origin.getPosition(), dest.getPosition()];
+
   poly.setPath(path);
 
   var flightKeys = ["lat_origin", "long_origin", "dep_time", "lat_dest",
       "long_dest", "arr_time", "airport_origin", "airport_dest"];
+
   var flight = subhash(result, flightKeys);
+
   flightsHash[JSON.stringify(flight)] = {
     origin_marker: origin,
     dest_marker: dest,
@@ -440,6 +448,15 @@ function deleteHandler(result) {
   }
 }
 
+function clearMap() {
+  $.each(flightsHash, function(key, value) {
+    value.origin_marker.setMap(null);
+    value.dest_marker.setMap(null);
+    value.polyline.setMap(null);
+    delete flightsHash[key];
+  });
+}
+
 function subhash(source, keys) {
   var newObject = {};
   keys.forEach(function(key) {
@@ -458,9 +475,9 @@ function createInfoMarker(lat, lng, timeStr, airportID) {
 
   google.maps.event.addListener(marker, "click", function() {
     var contentString = '<ul class="m_ul">'+
-    '<li class="m_li">Lat,Lng: '+marker.position.toString()+'</li>'+
-    //'<li class="m_li">Time: '+marker.gmtString+'</li>'+
+    '<li class="m_li">LatLng: ('+lat+', '+lng+')</li>'+
     '<li class="m_li">Airport ID: '+marker.airportID+'</li>'+
+    //'<li class="m_li">Time: '+marker.gmtString+'</li>'+
     '</ul>';
 
     var infoWindow = new google.maps.InfoWindow({
