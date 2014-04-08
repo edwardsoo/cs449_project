@@ -54,7 +54,7 @@ def broker_response_to_key_val(parts):
                 "long_dest_1", "arr_time_1", "airport_origin_1", "airport_dest_1",
                 "lat_origin_2", "long_origin_2", "dep_time_2", "lat_dest_2",
                 "long_dest_2", "arr_time_2", "airport_origin_2", "airport_dest_2",
-                "sum", "num_entriest", "pid"]
+                "sum", "num_entries", "pid"]
         entry_name = ["lat_origin", "long_origin", "dep_time", "lat_dest",
                 "long_dest", "arr_time", "airport_origin", "airport_dest", "weight"]
         entries = []
@@ -120,7 +120,8 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
 
                 # Msg format: [CLIENT ID] -> [] -> [OP] -> [ARG1] -> [ARG2] ...
                 broker.send('', zmq.SNDMORE)
-                broker.send(create_string_buffer(cmd), zmq.SNDMORE)
+                cmd_cstr = create_string_buffer(cmd, len(cmd));
+                broker.send(cmd_cstr, zmq.SNDMORE)
                 broker.send_multipart(num_args)
 
               except Exception as e:

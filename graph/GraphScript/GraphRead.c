@@ -92,6 +92,8 @@ int main(int argc, char **argv)
     zmq_record  record;
     dataset_record  entry;
     struct tm   myclock;
+    struct tm   myclock2;
+
 
     if(argc >= 2)
     {
@@ -179,6 +181,7 @@ int main(int argc, char **argv)
         }
 
         memset(&myclock,0,sizeof(struct tm));
+        memset(&myclock2,0,sizeof(struct tm));
 
         token = strtok(line,delim);
         if(token) strcpy(entry.date,token);
@@ -209,20 +212,25 @@ int main(int argc, char **argv)
         token = strtok(entry.date,delimDash);
         if(token) strcpy(str,token);
         else continue;
-        myclock.tm_year = atoi(token);
+        myclock.tm_year = atoi(token) - 1900;
+        myclock2.tm_year = atoi(token) - 1900;
+        //printf("Year %s ",token);
 
         // Month
         token = strtok(NULL,delimDash);
         if(token) strcat(str,token);
         else continue;
-        myclock.tm_mon = atoi(token);
-
+        myclock.tm_mon = atoi(token) - 1;
+        myclock2.tm_mon = atoi(token) - 1;
+        //printf("Day %s ",token);
 
         // Day
         token = strtok(NULL,delimDash);
         if(token) strcat(str,token);
         else continue;
         myclock.tm_mday = atoi(token);
+        myclock2.tm_mday = atoi(token);
+        //printf("Month %s ",token);
 
         strcpy(entry.date,str);
 
@@ -247,6 +255,7 @@ int main(int argc, char **argv)
         myclock.tm_hour  = atoi(entry.dep_time)/100;
         myclock.tm_min   = atoi(entry.dep_time)%100;
         record.dep_time  = mktime(&myclock);
+        //printf("Hour %02d Min %02d ",myclock.tm_hour,myclock.tm_min);
 
         record.lat_dest  = all_data[atoi(entry.airport_ID_dest)].latitude;
         record.long_dest = all_data[atoi(entry.airport_ID_dest)].longitude;
@@ -256,9 +265,10 @@ int main(int argc, char **argv)
             //strcpy(str,entry.date);
             //strcat(str,entry.arr_time);
             //record.arr_time    = atol(str);
-            myclock.tm_hour  = atoi(entry.arr_time)/100;
-            myclock.tm_min   = atoi(entry.arr_time)%100;
-            record.arr_time  = mktime(&myclock);
+            myclock2.tm_hour  = atoi(entry.arr_time)/100;
+            myclock2.tm_min   = atoi(entry.arr_time)%100;
+            record.arr_time  = mktime(&myclock2);
+            //printf("Hour %02d Min %02d         ",myclock2.tm_hour,myclock2.tm_min);
         }
         else
         {
@@ -267,10 +277,11 @@ int main(int argc, char **argv)
             //sprintf(str,"%ld",temp);
             //strcat(str,entry.arr_time);
             //record.arr_time    = atol(str);
-            myclock.tm_mday = myclock.tm_mday + 1;
-            myclock.tm_hour  = atoi(entry.arr_time)/100;
-            myclock.tm_min   = atoi(entry.arr_time)%100;
-            record.arr_time  = mktime(&myclock);
+            myclock2.tm_mday = myclock2.tm_mday + 1;
+            myclock2.tm_hour  = atoi(entry.arr_time)/100;
+            myclock2.tm_min   = atoi(entry.arr_time)%100;
+            record.arr_time  = mktime(&myclock2);
+            //printf("Hour %02d Min %02d (ADDED) ",myclock2.tm_hour,myclock2.tm_min);
         }
 
         record.distance = atof(entry.distance);
@@ -303,7 +314,18 @@ int main(int argc, char **argv)
         // Weight
         zmq_send (push_socket, &record.distance, sizeof(double), 0);
 
+/*
+        token = asctime(localtime(&record.dep_time));
+        char first[255];
+        strcpy(first,token);
+        first[strlen(first)-1] = '\0';
+        token = asctime(localtime(&record.arr_time));
+        char second[255];
+        strcpy(second,token);
+        second[strlen(second)-1] = '\0';
 
+        printf(" Sent one record: %ld, %ld, %ld, ..... %s, %s\n",record.dep_time,record.arr_time, record.arr_time - record.dep_time, first, second );
+*/
         printf("Sent one record: %ld, %ld, %ld, %ld, %ld, %ld, %lf (%ld,%ld)\n",record.lat_origin,record.long_origin,record.dep_time,record.lat_dest,record.long_dest,record.arr_time,record.distance,record.airport_ID_origin,record.airport_ID_dest);
 
         // Sleep for some time
