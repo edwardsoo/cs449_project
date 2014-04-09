@@ -205,6 +205,7 @@ int main (int argc, char* argv[])
 
         // Msg format: [] -> [REP]
         zmsg_remove (msg, frame);
+        zframe_destroy (&frame);
         publish (msg, fe_pub, peer_pub);
 
       } else {
