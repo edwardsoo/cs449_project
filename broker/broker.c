@@ -157,7 +157,6 @@ int main (int argc, char* argv[])
   }
   
   // Queue of available workers
-  // zlist_t *workers = zlist_new ();
   counter_t *workers = counter_new (0x100);
   
   zmq_pollitem_t items [] = {
@@ -230,7 +229,6 @@ int main (int argc, char* argv[])
 
       if (memcmp (zframe_data (frame), WORKER_READY, 1) == 0) {
         // Save worker on available list
-        // zlist_append (workers, identity);
         counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
 
         // Msg format: [READY]
@@ -258,7 +256,6 @@ int main (int argc, char* argv[])
 
       } else {
         // Save worker on available list
-        // zlist_append (workers, identity);
         counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
 
         // Msg format: [CLIENT ID] -> [] -> [REP]
@@ -286,7 +283,6 @@ int main (int argc, char* argv[])
           zmsg_send (&msg, frontend);
         }
       }
-      // printf ("Broker: %ld workers left\n", zlist_size (workers));
       printf ("Broker: %d workers left\n", counter_sum (workers));
       free (ptr);
     }
@@ -308,14 +304,13 @@ int main (int argc, char* argv[])
       // Got client request
       // Msg format: [CLIENT ID] -> [] -> [REQ]
       zmsg_t *msg = zmsg_recv (frontend);
-      printf ("Broker: got request from client\n");
+      // printf ("Broker: got request from client\n");
       // zmsg_dump (msg);
 
       if (!msg)
         break;
 
       // Route to first available worker
-      // identity = (zframe_t *) zlist_pop (workers);
       ptr = counter_max (workers);
       identity = hexstr_zframe (ptr);
       counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
@@ -323,21 +318,14 @@ int main (int argc, char* argv[])
 
 
       zmsg_wrap (msg, identity);
-      // zframe_print (identity, "Broker: route req to worker ");
 
       // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
       zmsg_send (&msg, backend);
-      // printf ("Broker: %ld workers left\n", zlist_size (workers));
       printf ("Broker: %d workers left\n", counter_sum (workers));
     }
   }
 
   // When we’re done, clean up properly
-  // while (zlist_size (workers)) {
-  //   frame = (zframe_t *) zlist_pop (workers);
-  //   zframe_destroy (&frame);
-  // }
-  // zlist_destroy (&workers);
   counter_destroy (&workers);
 
   // Notify discovery of shutdown
