@@ -634,5 +634,5 @@ function initMap() {
     center: new google.maps.LatLng(39.50, -98.35)
   }
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
-  google.maps.event.addListener(map, "click", defaultMapClickHandle);
+  resetPickers();
 }
