@@ -49,6 +49,10 @@ function bindOps(ws_logs) {
   $('#find').unbind();
   $('#delete').unbind();
   $('#range').unbind();
+  $('#origin_sw').unbind();
+  $('#origin_ne').unbind();
+  $('#dest_sw').unbind();
+  $('#dest_ne').unbind();
 
   $('#insert').click(function() {
       var f = newFlight(
@@ -165,11 +169,67 @@ function bindOps(ws_logs) {
       }
   });
 
+  $('#origin_sw').click(function() {
+    resetPickers();
+    $(this).text('click map');
+    $(this).attr('disabled', 'disabled');
+    google.maps.event.clearListeners(map, 'click');
+    google.maps.event.addListener(map, "click", function(e) {
+      var latLng = e.latLng;
+      $('#range_lat_origin_1').val(latLng.lat());
+      $('#range_long_origin_1').val(latLng.lng());
+      resetPickers();
+    });
+  });
+  $('#origin_ne').click(function() {
+    resetPickers();
+    $(this).text('click map');
+    $(this).attr('disabled', 'disabled');
+    google.maps.event.clearListeners(map, 'click');
+    google.maps.event.addListener(map, "click", function(e) {
+      var latLng = e.latLng;
+      $('#range_lat_origin_2').val(latLng.lat());
+      $('#range_long_origin_2').val(latLng.lng());
+      resetPickers();
+    });
+  });
+  $('#dest_sw').click(function() {
+    resetPickers();
+    $(this).text('click map');
+    $(this).attr('disabled', 'disabled');
+    google.maps.event.clearListeners(map, 'click');
+    google.maps.event.addListener(map, "click", function(e) {
+      var latLng = e.latLng;
+      $('#range_lat_dest_1').val(latLng.lat());
+      $('#range_long_dest_1').val(latLng.lng());
+      resetPickers();
+    });
+  });
+  $('#dest_ne').click(function() {
+    resetPickers();
+    $(this).text('click map');
+    $(this).attr('disabled', 'disabled');
+    google.maps.event.clearListeners(map, 'click');
+    google.maps.event.addListener(map, "click", function(e) {
+      var latLng = e.latLng;
+      $('#range_lat_dest_2').val(latLng.lat());
+      $('#range_long_dest_2').val(latLng.lng());
+      resetPickers();
+    });
+  });
+
   $('#close').click(function() {
       ws.close();
       $('#if').hide();
       $('#start_ws').show();
       });
+}
+
+function resetPickers() {
+  $('button.picker').text('Use map');
+  $('button.picker').removeAttr('disabled');
+  google.maps.event.clearListeners(map, 'click');
+  google.maps.event.addListener(map, "click", defaultMapClickHandle);
 }
 
 function sendDeltaTimeOp(list, ws_logs) {
@@ -513,22 +573,24 @@ function createInfoMarker(lat, lng, timeStr, airportID) {
   return marker;
 }
 
+function defaultMapClickHandle(e) {
+  var latLng = e.latLng;
+  var infoWindow = new google.maps.InfoWindow({
+    content: latLng.toUrlValue(3),
+    position: latLng
+  });
+  if (openedInfoWindow) {
+    openedInfoWindow.close();
+  }
+  infoWindow.open(map);
+  openedInfoWindow = infoWindow;
+}
+
 function initMap() {
   var mapOptions = {
     zoom: 4,
     center: new google.maps.LatLng(39.50, -98.35)
   }
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
-  google.maps.event.addListener(map, "click", function (e) {
-    var latLng = e.latLng;
-    var infoWindow = new google.maps.InfoWindow({
-      content: latLng.toUrlValue(3),
-      position: latLng
-    });
-    if (openedInfoWindow) {
-      openedInfoWindow.close();
-    }
-    infoWindow.open(map);
-    openedInfoWindow = infoWindow;
-  });
+  google.maps.event.addListener(map, "click", defaultMapClickHandle);
 }

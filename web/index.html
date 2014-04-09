@@ -94,17 +94,25 @@
       <button id="find">Find</button>
     
       <h4>Range Find</h4>
-      <input id="range_lat_origin_1" type="text" placeholder="Origin latitude L"/> -
-      <input id="range_lat_origin_2" type="text" placeholder="Origin latitude U"/>
-      &nbsp;&nbsp;&nbsp;
-      <input id="range_long_origin_1" type="text" placeholder="Origin longitude L"/> -
-      <input id="range_long_origin_2" type="text" placeholder="Origin longitude U"/>
+      <sub>Origin SW</sub>
+      <input id="range_lat_origin_1" type="text" placeholder="Origin latitude min"/>
+      <input id="range_long_origin_1" type="text" placeholder="Origin longitude min"/>
+      <button id="origin_sw" class="picker">Use map</button>
       <br>
-      <input id="range_lat_dest_1" type="text" placeholder="Destination latitude L"/> -
-      <input id="range_lat_dest_2" type="text" placeholder="Destination latitude U"/>
-      &nbsp;&nbsp;&nbsp;
-      <input id="range_long_dest_1" type="text" placeholder="Destination longitude L"/> -
-      <input id="range_long_dest_2" type="text" placeholder="Destination longitude U"/>
+      <sub>Origin NE</sub>
+      <input id="range_lat_origin_2" type="text" placeholder="Origin latitude max"/>
+      <input id="range_long_origin_2" type="text" placeholder="Origin longitude max"/>
+      <button id="origin_ne" class="picker">Use map</button>
+      <br>
+      <sub>Dest SW</sub>
+      <input id="range_lat_dest_1" type="text" placeholder="Destination latitude min"/>
+      <input id="range_long_dest_1" type="text" placeholder="Destination longitude min"/>
+      <button id="dest_sw" class="picker">Use map</button>
+      <br>
+      <sub>Dest NE</sub>
+      <input id="range_lat_dest_2" type="text" placeholder="Destination latitude max"/>
+      <input id="range_long_dest_2" type="text" placeholder="Destination longitude max"/>
+      <button id="dest_ne" class="picker">Use map</button>
       <br>
       <!--
       <input id="range_dep_time_1" type="text" placeholder="Departure time L"/> -
