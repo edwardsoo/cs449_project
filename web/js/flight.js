@@ -5,6 +5,7 @@ var flightsHash = {};
 var airportName = {};
 var markers = [];
 var polylines = [];
+var polygons = [];
 
 function appendMsg(ws_logs, msg) {
   var scroll = ws_logs.parent()[0];
@@ -341,18 +342,18 @@ function decodeRangeResult(result) {
   decoded.dep_time_1_str = t.toGMTString();
   t = new Date(result.arr_time_1*1000);
   decoded.arr_time_1_str = t.toGMTString();
-  decoded.lat_dest_1_dec = (result.lat_dest_1/1000 - 360).toFixed(3);
-  decoded.long_dest_1_dec = (result.long_dest_1/1000 - 360).toFixed(3);
-  decoded.lat_origin_1_dec = (result.lat_origin_1/1000 - 360).toFixed(3);
-  decoded.long_origin_1_dec = (result.long_origin_1/1000 - 360).toFixed(3);
+  decoded.lat_dest_1 = (result.lat_dest_1/1000 - 360).toFixed(3);
+  decoded.long_dest_1 = (result.long_dest_1/1000 - 360).toFixed(3);
+  decoded.lat_origin_1 = (result.lat_origin_1/1000 - 360).toFixed(3);
+  decoded.long_origin_1 = (result.long_origin_1/1000 - 360).toFixed(3);
   t  = new Date(result.dep_time_2*1000);
   decoded.dep_time_2_str = t.toGMTString();
   t = new Date(result.arr_time_2*1000);
   decoded.arr_time_2_str = t.toGMTString();
-  decoded.lat_dest_2_dec = (result.lat_dest_2/1000 - 360).toFixed(3);
-  decoded.long_dest_2_dec = (result.long_dest_2/1000 - 360).toFixed(3);
-  decoded.lat_origin_2_dec = (result.lat_origin_2/1000 - 360).toFixed(3);
-  decoded.long_origin_2_dec = (result.long_origin_2/1000 - 360).toFixed(3);
+  decoded.lat_dest_2 = (result.lat_dest_2/1000 - 360).toFixed(3);
+  decoded.long_dest_2 = (result.long_dest_2/1000 - 360).toFixed(3);
+  decoded.lat_origin_2 = (result.lat_origin_2/1000 - 360).toFixed(3);
+  decoded.long_origin_2 = (result.long_origin_2/1000 - 360).toFixed(3);
   decoded.airport_dest_1 = result.airport_dest_1;
   decoded.airport_dest_2 = result.airport_dest_2;
   decoded.airport_origin_1 = result.airport_origin_1;
@@ -403,6 +404,44 @@ function startWS()
             $.each(decoded.entries, function(idx, entry) {
               insertHandler(entry);
             });
+
+            var origin_bound = [
+              new google.maps.LatLng(decoded.lat_origin_1, decoded.long_origin_1),
+              new google.maps.LatLng(decoded.lat_origin_1, decoded.long_origin_2),
+              new google.maps.LatLng(decoded.lat_origin_2, decoded.long_origin_2),
+              new google.maps.LatLng(decoded.lat_origin_2, decoded.long_origin_1),
+            ];
+            var dest_bound = [
+              new google.maps.LatLng(decoded.lat_dest_1, decoded.long_dest_1),
+              new google.maps.LatLng(decoded.lat_dest_1, decoded.long_dest_2),
+              new google.maps.LatLng(decoded.lat_dest_2, decoded.long_dest_2),
+              new google.maps.LatLng(decoded.lat_dest_2, decoded.long_dest_1),
+            ];
+            var origin_polygon = new google.maps.Polygon({
+              path: origin_bound,
+              strokeColor: '#00FF00',
+              strokeOpacity: 0.5,
+              strokeWeight: 1,
+              fillColor: '#00FF00',
+              fillOpacity: 0.1,
+              clickable: false,
+              geodesic: true
+            });
+            var dest_polygon = new google.maps.Polygon({
+              path: dest_bound,
+              strokeColor: '#FF0000',
+              strokeOpacity: 0.5,
+              strokeWeight: 1,
+              fillColor: '#FF0000',
+              fillOpacity: 0.1,
+              clickable: false,
+              geodesic: true
+            });
+            origin_polygon.setMap(map);
+            dest_polygon.setMap(map);
+            polygons.push(origin_polygon);
+            polygons.push(dest_polygon);
+            
             appendMsg(ws_logs, JSON.stringify(decoded));
 
           } else if (result.success == 1 &&
@@ -519,8 +558,11 @@ function clearMap() {
   $.each(markers, function(idx, marker) {
     marker.setMap(null);
   });
-  $.each(polylines, function(idx, poly) {
-    poly.setMap(null);
+  $.each(polylines, function(idx, line) {
+    line.setMap(null);
+  });
+  $.each(polygons, function(idx, gon) {
+    gon.setMap(null);
   });
   flightsHash = {};
   ws.onmessage = temp;

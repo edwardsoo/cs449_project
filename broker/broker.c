@@ -188,7 +188,6 @@ int main (int argc, char* argv[])
       // zmsg_dump (msg);
 
       identity = zmsg_unwrap (msg);
-      // printf ("Broker: %ld workers left\n", zlist_size (workers));
 
       // Forward message to client if it’s not a READY
       frame = zmsg_first (msg);
@@ -232,6 +231,7 @@ int main (int argc, char* argv[])
           zmsg_send (&msg, frontend);
         }
       }
+      printf ("Broker: %ld workers left\n", zlist_size (workers));
     }
 
     if (items [3].revents & ZMQ_POLLIN) {
@@ -251,20 +251,22 @@ int main (int argc, char* argv[])
       // Got client request
       // Msg format: [CLIENT ID] -> [] -> [REQ]
       zmsg_t *msg = zmsg_recv (frontend);
-      // printf ("Broker: got request from client\n");
+      printf ("Broker: got request from client\n");
       // zmsg_dump (msg);
 
-      if (msg) {
-        // Route to first available worker
-        identity = (zframe_t *) zlist_pop (workers);
-        // printf ("Broker: %ld workers left\n", zlist_size (workers));
+      if (!msg)
+        break;
 
-        zmsg_wrap (msg, identity);
-        // zframe_print (identity, "Broker: route req to worker ");
+      // Route to first available worker
+      identity = (zframe_t *) zlist_pop (workers);
+      // printf ("Broker: %ld workers left\n", zlist_size (workers));
 
-        // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
-        zmsg_send (&msg, backend);
-      }
+      zmsg_wrap (msg, identity);
+      // zframe_print (identity, "Broker: route req to worker ");
+
+      // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
+      zmsg_send (&msg, backend);
+      printf ("Broker: %ld workers left\n", zlist_size (workers));
     }
   }
 
