@@ -8,8 +8,8 @@ MAIN = broker discovery be_test name_server
 
 all:    $(MAIN)
 
-broker: broker.o
-	$(CC) $(CFLAGS) -o broker broker.o $(LIBS)
+broker: broker.o counter.o
+	$(CC) $(CFLAGS) -o broker broker.o counter.o $(LIBS)
 discovery: discovery.o
 	$(CC) $(CFLAGS) -o discovery discovery.o $(LIBS)
 be_test: be_test.o

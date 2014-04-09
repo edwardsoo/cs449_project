@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <signal.h>
 #include "broker.h"
+#include "counter.h"
+
 #define TCP_URL "tcp://"
 
 void zmsg_full_dump (zmsg_t *msg) {
@@ -12,6 +14,28 @@ void zmsg_full_dump (zmsg_t *msg) {
     zframe_fprint (frame, "", stdout);
     frame = zmsg_next (msg);
   }
+}
+
+zframe_t* hexstr_zframe (char *hex_str) {
+  zframe_t *frame;
+  static const byte hex_table[] = {
+    [0 ... 255] = -1,
+    ['0'] = 0,1,2,3,4,5,6,7,8,9,
+    ['A'] = 10,11,12,13,14,15,
+    ['a'] = 10,11,12,13,14,15
+  };
+  size_t size = strlen (hex_str) / 2;
+  size_t i;
+
+  byte *data = malloc (sizeof (byte) * size);
+  for (i = 0; i < size; i++) {
+    data[i] = hex_table[(int) hex_str[2*i]] << 4;
+    data[i] += hex_table[(int) hex_str[2*i+1]];
+  }
+
+  frame = zframe_new (data, size);
+  free (data);
+  return frame;
 }
 
 // Publish a successful INSERT/DELETE to both frontend and peer with 2 prefixes
@@ -133,7 +157,8 @@ int main (int argc, char* argv[])
   }
   
   // Queue of available workers
-  zlist_t *workers = zlist_new ();
+  // zlist_t *workers = zlist_new ();
+  counter_t *workers = counter_new (0x100);
   
   zmq_pollitem_t items [] = {
     {peer_sub, 0, ZMQ_POLLIN, 0},
@@ -147,7 +172,17 @@ int main (int argc, char* argv[])
   printf ("Broker: enters main loop\n");
   while (1) {
     // Poll frontend only if we have available workers
-    int rc = zmq_poll (items, zlist_size (workers)? 5: 4, -1);
+    int rc, max_avail;
+
+    ptr = counter_max (workers);
+
+    if (ptr && (max_avail = counter_count (workers, ptr)) > 0) {
+      printf ("max avail worker %s: %d\n", ptr, max_avail);
+      rc = zmq_poll (items, 5, -1);
+    } else {
+      rc = zmq_poll (items, 4, -1);
+    }
+    free (ptr);
 
     // Interrupted
     if (rc == -1) {
@@ -188,12 +223,15 @@ int main (int argc, char* argv[])
       // zmsg_dump (msg);
 
       identity = zmsg_unwrap (msg);
+      ptr = zframe_strhex (identity);
 
       // Forward message to client if it’s not a READY
       frame = zmsg_first (msg);
+
       if (memcmp (zframe_data (frame), WORKER_READY, 1) == 0) {
         // Save worker on available list
-        zlist_append (workers, identity);
+        // zlist_append (workers, identity);
+        counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
 
         // Msg format: [READY]
         zmsg_destroy (&msg);
@@ -206,11 +244,22 @@ int main (int argc, char* argv[])
         // Msg format: [] -> [REP]
         zmsg_remove (msg, frame);
         zframe_destroy (&frame);
+
+        frame = zmsg_first (msg);
+        if (zframe_streq (frame, "INSERT")) {
+          // Pending auto-delete hold off 1 process window
+          counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
+
+        } else if (zframe_streq (frame, "DELETE")) {
+          // Completed auto-delete release 1 process window
+          counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
+        }
         publish (msg, fe_pub, peer_pub);
 
       } else {
         // Save worker on available list
-        zlist_append (workers, identity);
+        // zlist_append (workers, identity);
+        counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
 
         // Msg format: [CLIENT ID] -> [] -> [REP]
         identity = zmsg_unwrap (msg);
@@ -219,9 +268,14 @@ int main (int argc, char* argv[])
         success = zmsg_next (msg);
         int *success_val = (int*) zframe_data (success);
 
-        if ((zframe_streq (op, "INSERT") || zframe_streq (op, "DELETE")) &&
-            *success_val) {
-          // Publish 2 msgs to both frontend and peer if success INSERT/DELETE
+        // Publish 2 msgs to both frontend and peer if success INSERT/DELETE
+        if (zframe_streq (op, "INSERT") && *success_val) {
+          // Pending auto-delete hold off 1 process window
+          counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
+          publish (msg, fe_pub, peer_pub);
+          zframe_destroy (&identity);
+
+        } else if (zframe_streq (op, "DELETE") && *success_val) {
           publish (msg, fe_pub, peer_pub);
           zframe_destroy (&identity);
 
@@ -232,7 +286,9 @@ int main (int argc, char* argv[])
           zmsg_send (&msg, frontend);
         }
       }
-      printf ("Broker: %ld workers left\n", zlist_size (workers));
+      // printf ("Broker: %ld workers left\n", zlist_size (workers));
+      printf ("Broker: %d workers left\n", counter_sum (workers));
+      free (ptr);
     }
 
     if (items [3].revents & ZMQ_POLLIN) {
@@ -259,24 +315,30 @@ int main (int argc, char* argv[])
         break;
 
       // Route to first available worker
-      identity = (zframe_t *) zlist_pop (workers);
-      // printf ("Broker: %ld workers left\n", zlist_size (workers));
+      // identity = (zframe_t *) zlist_pop (workers);
+      ptr = counter_max (workers);
+      identity = hexstr_zframe (ptr);
+      counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
+      free (ptr);
+
 
       zmsg_wrap (msg, identity);
       // zframe_print (identity, "Broker: route req to worker ");
 
       // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
       zmsg_send (&msg, backend);
-      printf ("Broker: %ld workers left\n", zlist_size (workers));
+      // printf ("Broker: %ld workers left\n", zlist_size (workers));
+      printf ("Broker: %d workers left\n", counter_sum (workers));
     }
   }
 
   // When we’re done, clean up properly
-  while (zlist_size (workers)) {
-    frame = (zframe_t *) zlist_pop (workers);
-    zframe_destroy (&frame);
-  }
-  zlist_destroy (&workers);
+  // while (zlist_size (workers)) {
+  //   frame = (zframe_t *) zlist_pop (workers);
+  //   zframe_destroy (&frame);
+  // }
+  // zlist_destroy (&workers);
+  counter_destroy (&workers);
 
   // Notify discovery of shutdown
   printf("Broker: notifies discovery of shut down\n");
