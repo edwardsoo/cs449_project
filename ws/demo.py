@@ -267,7 +267,6 @@ def worker_routine(sender, conn_id, req_url, rep_url, broker_fe_url, pub_url):
               # If this is a pending DELETE response,
               # unsubscribe from future response with the same keys
               elif rep["op"] == "DELETE" and key in pending_delete:
-                  print "got pending delete"
                   rep_sub.setsockopt(zmq.UNSUBSCRIBE,
                       orig_dest[0] + "->" + orig_dest[1] + "DELETE")
                   pending_delete.remove(key)
