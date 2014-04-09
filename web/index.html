@@ -55,11 +55,15 @@
       <h4>Insert Edge</h4>
       <input id="insert_lat_origin" type="text" placeholder="Origin latitude"/>
       <input id="insert_long_origin" type="text" placeholder="Origin longitude"/>
-      <input id="insert_dep_time" type="text" placeholder="Departure time"/>
-      <input id="insert_dep_airport" type="text" placeholder="Departure airport"/>
+      <button id="insert_origin" class="picker">Select on map</button>
       <br>
       <input id="insert_lat_dest" type="text" placeholder="Destination latitude"/>
       <input id="insert_long_dest" type="text" placeholder="Destination longitude"/>
+      <button id="insert_dest" class="picker">Select on map</button>
+      <br>
+      <input id="insert_dep_time" type="text" placeholder="Departure time"/>
+      <input id="insert_dep_airport" type="text" placeholder="Departure airport"/>
+      <br>
       <input id="insert_arr_time" type="text" placeholder="Arrival time"/>
       <input id="insert_arr_airport" type="text" placeholder="Arrival airport"/>
       <br>
@@ -69,11 +73,13 @@
       <h4>Delete Edge</h4>
       <input id="delete_lat_origin" type="text" placeholder="Origin latitude"/>
       <input id="delete_long_origin" type="text" placeholder="Origin longitude"/>
-      <input id="delete_dep_time" type="text" placeholder="Departure time"/>
-      <input id="delete_dep_airport" type="text" placeholder="Departure airport"/>
       <br>
       <input id="delete_lat_dest" type="text" placeholder="Destination latitude"/>
       <input id="delete_long_dest" type="text" placeholder="Destination longitude"/>
+      <br>
+      <input id="delete_dep_time" type="text" placeholder="Departure time"/>
+      <input id="delete_dep_airport" type="text" placeholder="Departure airport"/>
+      <br>
       <input id="delete_arr_time" type="text" placeholder="Arrival time"/>
       <input id="delete_arr_airport" type="text" placeholder="Arrival airport"/>
       <button id="delete">Delete</button>
@@ -81,11 +87,13 @@
       <h4>Find Edge</h4>
       <input id="find_lat_origin" type="text" placeholder="Origin latitude"/>
       <input id="find_long_origin" type="text" placeholder="Origin longitude"/>
-      <input id="find_dep_time" type="text" placeholder="Departure time"/>
-      <input id="find_dep_airport" type="text" placeholder="Departure airport"/>
       <br>
       <input id="find_lat_dest" type="text" placeholder="Destination latitude"/>
       <input id="find_long_dest" type="text" placeholder="Destination longitude"/>
+      <br>
+      <input id="find_dep_time" type="text" placeholder="Departure time"/>
+      <input id="find_dep_airport" type="text" placeholder="Departure airport"/>
+      <br>
       <input id="find_arr_time" type="text" placeholder="Arrival time"/>
       <input id="find_arr_airport" type="text" placeholder="Arrival airport"/>
       <button id="find">Find</button>
@@ -106,7 +114,6 @@
       <input id="range_lat_dest_2" type="text" placeholder="Destination latitude max"/>
       <input id="range_long_dest_2" type="text" placeholder="Destination longitude max"/>
       <button id="range_dest_2" class="picker">Select on map</button>
-      <br>
       <!--
       <input id="range_dep_time_1" type="text" placeholder="Departure time L"/> -
       <input id="range_dep_time_2" type="text" placeholder="Departure time U"/>
@@ -120,6 +127,7 @@
       <input id="range_arr_airport_1" type="text" placeholder="Arrival airport L"/> -
       <input id="range_arr_airport_2" type="text" placeholder="Arrival airport U"/>
       -->
+      <br>
       <button id="range">Find</button>
     </div>
     </td>
