@@ -332,24 +332,17 @@ function decodeResult(result) {
   decoded.success = result.success;
   decoded.duplicate = result.duplicate;
   decoded.pid = result.pid;
+  decoded.op = result.op;
   return decoded;
 }
 
 function decodeRangeResult(result) {
   var t, decoded;
   decoded = {};
-  t  = new Date(result.dep_time_1*1000);
-  decoded.dep_time_1_str = t.toGMTString();
-  t = new Date(result.arr_time_1*1000);
-  decoded.arr_time_1_str = t.toGMTString();
   decoded.lat_dest_1 = (result.lat_dest_1/1000 - 360).toFixed(3);
   decoded.long_dest_1 = (result.long_dest_1/1000 - 360).toFixed(3);
   decoded.lat_origin_1 = (result.lat_origin_1/1000 - 360).toFixed(3);
   decoded.long_origin_1 = (result.long_origin_1/1000 - 360).toFixed(3);
-  t  = new Date(result.dep_time_2*1000);
-  decoded.dep_time_2_str = t.toGMTString();
-  t = new Date(result.arr_time_2*1000);
-  decoded.arr_time_2_str = t.toGMTString();
   decoded.lat_dest_2 = (result.lat_dest_2/1000 - 360).toFixed(3);
   decoded.long_dest_2 = (result.long_dest_2/1000 - 360).toFixed(3);
   decoded.lat_origin_2 = (result.lat_origin_2/1000 - 360).toFixed(3);
@@ -358,13 +351,22 @@ function decodeRangeResult(result) {
   decoded.airport_dest_2 = result.airport_dest_2;
   decoded.airport_origin_1 = result.airport_origin_1;
   decoded.airport_origin_2 = result.airport_origin_2;
+  t  = new Date(result.dep_time_1*1000);
+  decoded.dep_time_1_str = t.toGMTString();
+  t = new Date(result.arr_time_1*1000);
+  decoded.arr_time_1_str = t.toGMTString();
+  t  = new Date(result.dep_time_2*1000);
+  decoded.dep_time_2_str = t.toGMTString();
+  t = new Date(result.arr_time_2*1000);
+  decoded.arr_time_2_str = t.toGMTString();
+  decoded.sum = result.sum;
+  decoded.num_entries = result.num_entries;
+  decoded.pid = result.pid;
+  decoded.op = result.op;
   decoded.entries = [];
   $.each(result.entries, function (idx, entry) {
     decoded.entries.push(decodeResult(entry));
   });
-  decoded.sum = result.sum;
-  decoded.num_entries = result.num_entries;
-  decoded.pid = result.pid;
   return decoded;
 }
 
