@@ -169,54 +169,10 @@ function bindOps(ws_logs) {
       }
   });
 
-  $('#origin_sw').click(function() {
-    resetPickers();
-    $(this).text('click map');
-    $(this).attr('disabled', 'disabled');
-    google.maps.event.clearListeners(map, 'click');
-    google.maps.event.addListener(map, "click", function(e) {
-      var latLng = e.latLng;
-      $('#range_lat_origin_1').val(latLng.lat());
-      $('#range_long_origin_1').val(latLng.lng());
-      resetPickers();
-    });
-  });
-  $('#origin_ne').click(function() {
-    resetPickers();
-    $(this).text('click map');
-    $(this).attr('disabled', 'disabled');
-    google.maps.event.clearListeners(map, 'click');
-    google.maps.event.addListener(map, "click", function(e) {
-      var latLng = e.latLng;
-      $('#range_lat_origin_2').val(latLng.lat());
-      $('#range_long_origin_2').val(latLng.lng());
-      resetPickers();
-    });
-  });
-  $('#dest_sw').click(function() {
-    resetPickers();
-    $(this).text('click map');
-    $(this).attr('disabled', 'disabled');
-    google.maps.event.clearListeners(map, 'click');
-    google.maps.event.addListener(map, "click", function(e) {
-      var latLng = e.latLng;
-      $('#range_lat_dest_1').val(latLng.lat());
-      $('#range_long_dest_1').val(latLng.lng());
-      resetPickers();
-    });
-  });
-  $('#dest_ne').click(function() {
-    resetPickers();
-    $(this).text('click map');
-    $(this).attr('disabled', 'disabled');
-    google.maps.event.clearListeners(map, 'click');
-    google.maps.event.addListener(map, "click", function(e) {
-      var latLng = e.latLng;
-      $('#range_lat_dest_2').val(latLng.lat());
-      $('#range_long_dest_2').val(latLng.lng());
-      resetPickers();
-    });
-  });
+  $('#range_origin_1').click(pickerHandle);
+  $('#range_origin_2').click(pickerHandle);
+  $('#range_dest_1').click(pickerHandle);
+  $('#range_dest_2').click(pickerHandle);
 
   $('#close').click(function() {
       ws.close();
@@ -225,8 +181,40 @@ function bindOps(ws_logs) {
       });
 }
 
+function pickerHandle() {
+  resetPickers();
+  var id = $(this).attr('id');
+  $(this).text('Click map now');
+  $(this).attr('disabled', 'disabled');
+  google.maps.event.clearListeners(map, 'click');
+  google.maps.event.addListener(map, "click", function(e) {
+    var latLng = e.latLng;
+    switch (id) {
+      case 'range_origin_1':
+        $('#range_lat_origin_1').val(latLng.lat());
+        $('#range_long_origin_1').val(latLng.lng());
+        break;
+      case 'range_origin_2':
+        $('#range_lat_origin_2').val(latLng.lat());
+        $('#range_long_origin_2').val(latLng.lng());
+        break;
+      case 'range_dest_1':
+        $('#range_lat_dest_1').val(latLng.lat());
+        $('#range_long_dest_1').val(latLng.lng());
+        break;
+      case 'range_dest_2':
+        $('#range_lat_dest_2').val(latLng.lat());
+        $('#range_long_dest_2').val(latLng.lng());
+        break;
+      default:
+        break;
+    }
+    resetPickers();
+  });
+}
+
 function resetPickers() {
-  $('button.picker').text('Use map');
+  $('button.picker').text('Select on map');
   $('button.picker').removeAttr('disabled');
   google.maps.event.clearListeners(map, 'click');
   google.maps.event.addListener(map, "click", defaultMapClickHandle);
@@ -365,6 +353,10 @@ function decodeRangeResult(result) {
   decoded.long_dest_2_dec = (result.long_dest_2/1000 - 360).toFixed(3);
   decoded.lat_origin_2_dec = (result.lat_origin_2/1000 - 360).toFixed(3);
   decoded.long_origin_2_dec = (result.long_origin_2/1000 - 360).toFixed(3);
+  decoded.airport_dest_1 = result.airport_dest_1;
+  decoded.airport_dest_2 = result.airport_dest_2;
+  decoded.airport_origin_1 = result.airport_origin_1;
+  decoded.airport_origin_2 = result.airport_origin_2;
   decoded.entries = [];
   $.each(result.entries, function (idx, entry) {
     decoded.entries.push(decodeResult(entry));
@@ -404,36 +396,42 @@ function startWS()
         var result = JSON.parse(msg);
         var decoded;
 
-        if ("op" in result) {
+        if ("op" in result && $.inArray(result.op, ["INSERT","DELETE","FIND","RANGE"]) > -1) {
           if (result.op == "RANGE") {
             decoded = decodeRangeResult(result);
             clearMap();
             $.each(decoded.entries, function(idx, entry) {
               insertHandler(entry);
             });
+            appendMsg(ws_logs, JSON.stringify(decoded));
+
+          } else if (result.success == 1 &&
+              (result.op == "INSERT" || result.op == "FIND")) {
+            decoded = decodeResult(result);
+            insertHandler(decoded);
+            appendMsg(ws_logs, JSON.stringify(decoded));
+
+          } else if (result.op == "DELETE" && result.success == 1) {
+            decoded = decodeResult(result);
+            deleteHandler(decoded);
+            appendMsg(ws_logs, JSON.stringify(decoded));
 
           } else {
             decoded = decodeResult(result);
+            appendMsg(ws_logs, JSON.stringify(decoded));
+
+          }
+        } else {
+          if (result.op == "NAME_LOOKUP" && result.success == 1) {
+            airportName[result.key] = result.value;
+            if (openedInfoWindow && ('anchor' in openedInfoWindow)) {
+              createInfoWindow(openedInfoWindow.anchor);
+            }
           }
 
-          if (result.success == 1 &&
-              (result.op == "INSERT" || result.op == "FIND")) {
-            insertHandler(decoded);
-
-          } else if (result.op == "DELETE" && result.success == 1) {
-            deleteHandler(decoded);
-          }
-
-          appendMsg(ws_logs, JSON.stringify(decoded));
-        }
-
-        if (result.op == "NAME_LOOKUP" && result.success == 1) {
-          airportName[result.key] = result.value;
-          if (openedInfoWindow && ('anchor' in openedInfoWindow)) {
-            createInfoWindow(openedInfoWindow.anchor);
-          }
           appendMsg(ws_logs, JSON.stringify(result));
         }
+
 
       } catch (e) {
         console.log(e);

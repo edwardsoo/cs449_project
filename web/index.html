@@ -20,7 +20,7 @@
   }
   table {
     width: 100%;
-    height: 35%;
+    height: 65%;
   }
   div#map-canvas {
     width: 100%;
@@ -48,11 +48,7 @@
   <input id="name_map" type="file" name="file"/>
 
   <table>
-  <tr>
-    <th align="left"><h3>Operations</h3></th>
-    <th align="left"><h3>Range Graph</h3></th>
-  </tr>
-  <tr>
+  <tr style="vertical-align:top;">
     <td style="width: 50%">
     <div id="operations">
       <h4>Insert Edge</h4>
@@ -94,25 +90,21 @@
       <button id="find">Find</button>
     
       <h4>Range Find</h4>
-      <sub>Origin SW</sub>
       <input id="range_lat_origin_1" type="text" placeholder="Origin latitude min"/>
       <input id="range_long_origin_1" type="text" placeholder="Origin longitude min"/>
-      <button id="origin_sw" class="picker">Use map</button>
+      <button id="range_origin_1" class="picker">Select on map</button>
       <br>
-      <sub>Origin NE</sub>
       <input id="range_lat_origin_2" type="text" placeholder="Origin latitude max"/>
       <input id="range_long_origin_2" type="text" placeholder="Origin longitude max"/>
-      <button id="origin_ne" class="picker">Use map</button>
+      <button id="range_origin_2" class="picker">Select on map</button>
       <br>
-      <sub>Dest SW</sub>
       <input id="range_lat_dest_1" type="text" placeholder="Destination latitude min"/>
       <input id="range_long_dest_1" type="text" placeholder="Destination longitude min"/>
-      <button id="dest_sw" class="picker">Use map</button>
+      <button id="range_dest_1" class="picker">Select on map</button>
       <br>
-      <sub>Dest NE</sub>
       <input id="range_lat_dest_2" type="text" placeholder="Destination latitude max"/>
       <input id="range_long_dest_2" type="text" placeholder="Destination longitude max"/>
-      <button id="dest_ne" class="picker">Use map</button>
+      <button id="range_dest_2" class="picker">Select on map</button>
       <br>
       <!--
       <input id="range_dep_time_1" type="text" placeholder="Departure time L"/> -
