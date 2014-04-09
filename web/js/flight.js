@@ -170,6 +170,8 @@ function bindOps(ws_logs) {
       }
   });
 
+  $('#insert_origin').click(pickerHandle);
+  $('#insert_dest').click(pickerHandle);
   $('#range_origin_1').click(pickerHandle);
   $('#range_origin_2').click(pickerHandle);
   $('#range_dest_1').click(pickerHandle);
@@ -185,7 +187,7 @@ function bindOps(ws_logs) {
 function pickerHandle() {
   resetPickers();
   var id = $(this).attr('id');
-  $(this).text('Click map now');
+  $(this).text('Click map');
   $(this).attr('disabled', 'disabled');
   google.maps.event.clearListeners(map, 'click');
   google.maps.event.addListener(map, "click", function(e) {
@@ -206,6 +208,14 @@ function pickerHandle() {
       case 'range_dest_2':
         $('#range_lat_dest_2').val(latLng.lat());
         $('#range_long_dest_2').val(latLng.lng());
+        break;
+      case 'insert_origin':
+        $('#insert_lat_origin').val(latLng.lat());
+        $('#insert_long_origin').val(latLng.lng());
+        break;
+      case 'insert_dest':
+        $('#insert_lat_dest').val(latLng.lat());
+        $('#insert_long_dest').val(latLng.lng());
         break;
       default:
         break;
