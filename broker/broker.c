@@ -176,7 +176,7 @@ int main (int argc, char* argv[])
     ptr = counter_max (workers);
 
     if (ptr && (max_avail = counter_count (workers, ptr)) > 0) {
-      printf ("max avail worker %s: %d\n", ptr, max_avail);
+      // printf ("max avail worker %s: %d\n", ptr, max_avail);
       rc = zmq_poll (items, 5, -1);
     } else {
       rc = zmq_poll (items, 4, -1);
@@ -243,15 +243,14 @@ int main (int argc, char* argv[])
         zmsg_remove (msg, frame);
         zframe_destroy (&frame);
 
-        frame = zmsg_first (msg);
-        if (zframe_streq (frame, "INSERT")) {
-          // Pending auto-delete hold off 1 process window
-          counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
+        // frame = zmsg_first (msg);
+        // if (zframe_streq (frame, "INSERT")) {
+        //   // Pending auto-delete hold off 1 process window
 
-        } else if (zframe_streq (frame, "DELETE")) {
-          // Completed auto-delete release 1 process window
-          counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
-        }
+        // } else if (zframe_streq (frame, "DELETE")) {
+        //   // Completed auto-delete release 1 process window
+        // }
+
         publish (msg, fe_pub, peer_pub);
 
       } else {
@@ -267,8 +266,6 @@ int main (int argc, char* argv[])
 
         // Publish 2 msgs to both frontend and peer if success INSERT/DELETE
         if (zframe_streq (op, "INSERT") && *success_val) {
-          // Pending auto-delete hold off 1 process window
-          counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
           publish (msg, fe_pub, peer_pub);
           zframe_destroy (&identity);
 
@@ -283,8 +280,8 @@ int main (int argc, char* argv[])
           zmsg_send (&msg, frontend);
         }
       }
-      printf ("Broker: %d workers left\n", counter_sum (workers));
       free (ptr);
+      printf ("Broker: %d workers left\n", counter_sum (workers));
     }
 
     if (items [3].revents & ZMQ_POLLIN) {
