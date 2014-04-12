@@ -5,7 +5,7 @@ var flightsHash = {};
 var airportName = {};
 var markers = [];
 var polylines = [];
-var polygons = [];
+var rectangles = [];
 
 function appendMsg(ws_logs, msg) {
   var scroll = ws_logs.parent()[0];
@@ -380,6 +380,58 @@ function decodeRangeResult(result) {
   return decoded;
 }
 
+function drawBoundingRectangle(sw, ne, rgb) {
+  var rectangle = new google.maps.Rectangle({
+    strokeColor: rgb,
+    strokeOpacity: 0.5,
+    strokeWeight: 1,
+    fillColor: rgb,
+    fillOpacity: 0.2,
+    map: map,
+    editable: true,
+    draggable: true,
+    geodesic: true,
+    bounds: new google.maps.LatLngBounds(sw, ne)
+  });
+  return rectangle;
+}
+
+function drawRangeRectangles(origin_sw, origin_ne, dest_sw, dest_ne) {
+  var origin_rect = drawBoundingRectangle(
+    origin_sw,
+    origin_ne,
+    '#00FF00'
+  );
+  var dest_rect = drawBoundingRectangle(
+    dest_sw,
+    dest_ne,
+    '#FF0000'
+  );
+  
+  google.maps.event.addListener(origin_rect, "bounds_changed", function() {
+    var sw = origin_rect.getBounds().getSouthWest();
+    var ne = origin_rect.getBounds().getNorthEast();
+    $('#range_lat_origin_1').val(sw.lat());
+    $('#range_long_origin_1').val(sw.lng());
+    $('#range_lat_origin_2').val(ne.lat());
+    $('#range_long_origin_2').val(ne.lng());
+  });
+
+  google.maps.event.addListener(dest_rect, "bounds_changed", function() {
+    var sw = dest_rect.getBounds().getSouthWest();
+    var ne = dest_rect.getBounds().getNorthEast();
+    $('#range_lat_dest_1').val(sw.lat());
+    $('#range_long_dest_1').val(sw.lng());
+    $('#range_lat_dest_2').val(ne.lat());
+    $('#range_long_dest_2').val(ne.lng());
+  });
+
+  google.maps.event.trigger(origin_rect,'bounds_changed')
+  google.maps.event.trigger(dest_rect,'bounds_changed')
+  rectangles.push(origin_rect);
+  rectangles.push(dest_rect);
+}
+
 function startWS()
 {
   $('#start_ws').hide();
@@ -416,44 +468,13 @@ function startWS()
             $.each(decoded.entries, function(idx, entry) {
               insertHandler(entry);
             });
-
-            var origin_bound = [
+            drawRangeRectangles(
               new google.maps.LatLng(decoded.lat_origin_1, decoded.long_origin_1),
-              new google.maps.LatLng(decoded.lat_origin_1, decoded.long_origin_2),
               new google.maps.LatLng(decoded.lat_origin_2, decoded.long_origin_2),
-              new google.maps.LatLng(decoded.lat_origin_2, decoded.long_origin_1),
-            ];
-            var dest_bound = [
               new google.maps.LatLng(decoded.lat_dest_1, decoded.long_dest_1),
-              new google.maps.LatLng(decoded.lat_dest_1, decoded.long_dest_2),
-              new google.maps.LatLng(decoded.lat_dest_2, decoded.long_dest_2),
-              new google.maps.LatLng(decoded.lat_dest_2, decoded.long_dest_1),
-            ];
-            var origin_polygon = new google.maps.Polygon({
-              path: origin_bound,
-              strokeColor: '#00FF00',
-              strokeOpacity: 0.5,
-              strokeWeight: 1,
-              fillColor: '#00FF00',
-              fillOpacity: 0.1,
-              clickable: false,
-              geodesic: true
-            });
-            var dest_polygon = new google.maps.Polygon({
-              path: dest_bound,
-              strokeColor: '#FF0000',
-              strokeOpacity: 0.5,
-              strokeWeight: 1,
-              fillColor: '#FF0000',
-              fillOpacity: 0.1,
-              clickable: false,
-              geodesic: true
-            });
-            origin_polygon.setMap(map);
-            dest_polygon.setMap(map);
-            polygons.push(origin_polygon);
-            polygons.push(dest_polygon);
-            
+              new google.maps.LatLng(decoded.lat_dest_2, decoded.long_dest_2)
+            );
+
             appendMsg(ws_logs, JSON.stringify(decoded));
 
           } else if (result.success == 1 &&
@@ -573,8 +594,8 @@ function clearMap() {
   $.each(polylines, function(idx, line) {
     line.setMap(null);
   });
-  $.each(polygons, function(idx, gon) {
-    gon.setMap(null);
+  $.each(rectangles, function(idx, rect) {
+    rect.setMap(null);
   });
   flightsHash = {};
   ws.onmessage = temp;
@@ -645,4 +666,11 @@ function initMap() {
   }
   map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
   resetPickers();
+
+  drawRangeRectangles(
+    new google.maps.LatLng(31.40, -121.12),
+    new google.maps.LatLng(37.75, -114.34),
+    new google.maps.LatLng(38.30, -78.05),
+    new google.maps.LatLng(43.48, -69.87)
+  );
 }
