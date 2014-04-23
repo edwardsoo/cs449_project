@@ -582,6 +582,8 @@ function deleteHandler(result) {
     value.dest_marker.setMap(null);
     value.polyline.setMap(null);
     delete flightsHash[key];
+  } else {
+    console.log("Could not find flight on map: " + key);
   }
 }
 
