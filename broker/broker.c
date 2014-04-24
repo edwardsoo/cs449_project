@@ -230,6 +230,7 @@ int main (int argc, char* argv[])
       if (memcmp (zframe_data (frame), WORKER_READY, 1) == 0) {
         // Save worker on available list
         counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
+        printf ("Broker got READY, %d workers left\n", counter_sum (workers));
 
         // Msg format: [READY]
         zmsg_destroy (&msg);
@@ -256,6 +257,7 @@ int main (int argc, char* argv[])
       } else {
         // Save worker on available list
         counter_insert (workers, ptr, counter_count (workers, ptr) + 1);
+        printf ("Broker got REPLY, %d workers left\n", counter_sum (workers));
 
         // Msg format: [CLIENT ID] -> [] -> [REP]
         identity = zmsg_unwrap (msg);
@@ -281,7 +283,6 @@ int main (int argc, char* argv[])
         }
       }
       free (ptr);
-      printf ("Broker: %d workers left\n", counter_sum (workers));
     }
 
     if (items [3].revents & ZMQ_POLLIN) {
@@ -311,6 +312,7 @@ int main (int argc, char* argv[])
       ptr = counter_max (workers);
       identity = hexstr_zframe (ptr);
       counter_insert (workers, ptr, counter_count (workers, ptr) - 1);
+      printf ("Broker forward REQUEST to %s, %d workers left\n", ptr, counter_sum (workers));
       free (ptr);
 
 
@@ -318,7 +320,6 @@ int main (int argc, char* argv[])
 
       // Msg format: [WORKER ID] -> [] -> [CLIENT ID] -> [] -> [REQ DATA]
       zmsg_send (&msg, backend);
-      printf ("Broker: %d workers left\n", counter_sum (workers));
     }
   }
 

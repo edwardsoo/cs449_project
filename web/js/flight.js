@@ -361,14 +361,14 @@ function decodeRangeResult(result) {
   decoded.airport_dest_2 = result.airport_dest_2;
   decoded.airport_origin_1 = result.airport_origin_1;
   decoded.airport_origin_2 = result.airport_origin_2;
-  t  = new Date(result.dep_time_1*1000);
-  decoded.dep_time_1_str = t.toGMTString();
-  t = new Date(result.arr_time_1*1000);
-  decoded.arr_time_1_str = t.toGMTString();
-  t  = new Date(result.dep_time_2*1000);
-  decoded.dep_time_2_str = t.toGMTString();
-  t = new Date(result.arr_time_2*1000);
-  decoded.arr_time_2_str = t.toGMTString();
+  // t  = new Date(result.dep_time_1*1000);
+  // decoded.dep_time_1_str = t.toGMTString();
+  // t = new Date(result.arr_time_1*1000);
+  // decoded.arr_time_1_str = t.toGMTString();
+  // t  = new Date(result.dep_time_2*1000);
+  // decoded.dep_time_2_str = t.toGMTString();
+  // t = new Date(result.arr_time_2*1000);
+  // decoded.arr_time_2_str = t.toGMTString();
   decoded.sum = result.sum;
   decoded.num_entries = result.num_entries;
   decoded.pid = result.pid;
@@ -524,6 +524,17 @@ function startWS()
 
 function insertHandler(result) {
 
+  var flightKeys = ["lat_origin", "long_origin", "dep_time", "lat_dest",
+      "long_dest", "arr_time", "airport_origin", "airport_dest"];
+
+  var flight = subhash(result, flightKeys);
+  var key = JSON.stringify(flight);
+
+  if (key in flightsHash) {
+    // console.log("Edge already plotted:" + key);
+    return;
+  }
+
   var origin = createInfoMarker(result.lat_origin, result.long_origin,
       result.dep_time, result.airport_origin);
 
@@ -553,22 +564,15 @@ function insertHandler(result) {
 
   poly.setPath(path);
 
-  var flightKeys = ["lat_origin", "long_origin", "dep_time", "lat_dest",
-      "long_dest", "arr_time", "airport_origin", "airport_dest"];
-
-  var flight = subhash(result, flightKeys);
-  var key = JSON.stringify(flight);
-
-  if (!(key in flightsHash)) {
-    flightsHash[JSON.stringify(flight)] = {
-      origin_marker: origin,
-      dest_marker: dest,
-      polyline: poly
-    };
-  }
   markers.push(origin);
   markers.push(dest);
   polylines.push(poly); 
+
+  flightsHash[JSON.stringify(flight)] = {
+    origin_marker: origin,
+    dest_marker: dest,
+    polyline: poly
+  };
 }
 
 function deleteHandler(result) {
@@ -576,12 +580,16 @@ function deleteHandler(result) {
       "long_dest", "arr_time", "airport_origin", "airport_dest"];
   var flight = subhash(result, flightKeys);
   var key = JSON.stringify(flight);
+
   if (key in flightsHash) {
     var value = flightsHash[key];
     value.origin_marker.setMap(null);
     value.dest_marker.setMap(null);
     value.polyline.setMap(null);
     delete flightsHash[key];
+
+  } else {
+    // console.log("Could not find edge:" + key);
   }
 }
 
