@@ -357,10 +357,10 @@ function decodeRangeResult(result) {
   decoded.long_dest_2 = (result.long_dest_2/1000 - 360).toFixed(3);
   decoded.lat_origin_2 = (result.lat_origin_2/1000 - 360).toFixed(3);
   decoded.long_origin_2 = (result.long_origin_2/1000 - 360).toFixed(3);
-  decoded.airport_dest_1 = result.airport_dest_1;
-  decoded.airport_dest_2 = result.airport_dest_2;
-  decoded.airport_origin_1 = result.airport_origin_1;
-  decoded.airport_origin_2 = result.airport_origin_2;
+  // decoded.airport_dest_1 = result.airport_dest_1;
+  // decoded.airport_dest_2 = result.airport_dest_2;
+  // decoded.airport_origin_1 = result.airport_origin_1;
+  // decoded.airport_origin_2 = result.airport_origin_2;
   // t  = new Date(result.dep_time_1*1000);
   // decoded.dep_time_1_str = t.toGMTString();
   // t = new Date(result.arr_time_1*1000);
@@ -531,7 +531,7 @@ function insertHandler(result) {
   var key = JSON.stringify(flight);
 
   if (key in flightsHash) {
-    // console.log("Edge already plotted:" + key);
+    console.log("Edge already plotted:" + key);
     return;
   }
 
@@ -589,7 +589,7 @@ function deleteHandler(result) {
     delete flightsHash[key];
 
   } else {
-    // console.log("Could not find edge:" + key);
+    console.log("Could not find edge:" + key);
   }
 }
 

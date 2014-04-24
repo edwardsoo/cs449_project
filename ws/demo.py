@@ -18,6 +18,7 @@ from ctypes import c_uint
 from ctypes import c_double
 from ctypes import c_longlong
 from collections import Counter
+from sets import Set
 
 
 def abortConnection(conn,req,reason='none',code=None):
@@ -107,6 +108,7 @@ def worker_routine(sender, conn_id, main_url, broker_fe_url, pub_url):
     pending_insert = []
     pending_delete = []
     flight_count = Counter()
+    subgraph = Set([])
 
     print 'Starting thread for connection %s' %(conn_id)
 
@@ -209,10 +211,13 @@ def worker_routine(sender, conn_id, main_url, broker_fe_url, pub_url):
                       for i in xrange(flight_count[orig_dest]):
                           rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[0])
                           rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[1])
+
                   flight_count.clear()
+                  subgraph.clear()
 
                   for entry in rep['entries']:
                       key = flight_key(entry);
+                      subgraph.add(key)
                       orig_dest = flight_orig_dest(key);
                       rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[0])
                       rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[1])
@@ -231,24 +236,27 @@ def worker_routine(sender, conn_id, main_url, broker_fe_url, pub_url):
               key = flight_key(rep);
               orig_dest = flight_orig_dest(key)
 
-              # If a range query graph is in place,
-              # subscribe to both endpoints and expand open graph
-              if flight_count:
-                  rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[0])
-                  rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[1])
-                  flight_count[orig_dest] += 1
-                  main.send_multipart(ident + ['rep', json.dumps(rep)])
+              # Does nothing if edge already in client's subgraph
+              if key not in subgraph:
+                  # If a range query graph is in place,
+                  # subscribe to both endpoints and expand open graph
+                  if flight_count:
+                      rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[0])
+                      rep_sub.setsockopt(zmq.SUBSCRIBE, orig_dest[1])
+                      flight_count[orig_dest] += 1
 
-              # If this is a pending INSERT response,
-              # unsubscribe from future INSERT response with the same keys
-              # subscibe for DELETE of this key
-              elif rep['op'] == 'INSERT' and key in pending_insert:
-                  rep_sub.setsockopt(zmq.UNSUBSCRIBE,
-                      orig_dest[0] + '->' + orig_dest[1] + 'INSERT')
-                  rep_sub.setsockopt(zmq.SUBSCRIBE,
-                      orig_dest[0] + '->' + orig_dest[1] + 'DELETE')
-                  pending_insert.remove(key)
-                  pending_delete.append(key)
+                  # If this is a pending INSERT response,
+                  # unsubscribe from future INSERT response with the same keys
+                  # subscibe for DELETE of this key
+                  elif rep['op'] == 'INSERT' and key in pending_insert:
+                      rep_sub.setsockopt(zmq.UNSUBSCRIBE,
+                          orig_dest[0] + '->' + orig_dest[1] + 'INSERT')
+                      rep_sub.setsockopt(zmq.SUBSCRIBE,
+                          orig_dest[0] + '->' + orig_dest[1] + 'DELETE')
+                      pending_insert.remove(key)
+                      pending_delete.append(key)
+
+                  subgraph.add(key)
                   main.send_multipart(ident + ['rep', json.dumps(rep)])
 
 
@@ -256,20 +264,23 @@ def worker_routine(sender, conn_id, main_url, broker_fe_url, pub_url):
               key = flight_key(rep);
               orig_dest = flight_orig_dest(key)
 
-              # If a range query is in place,
-              # unsubscribe from both endpoints and shrink open graph
-              if flight_count and flight_count[orig_dest]:
-                  rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[0])
-                  rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[1])
-                  flight_count[orig_dest] -= 1
-                  main.send_multipart(ident + ['rep', json.dumps(rep)])
+              # Does nothing if edge not in client's subgraph
+              if key in subgraph:
+                  # If a range query is in place,
+                  # unsubscribe from both endpoints and shrink open graph
+                  if flight_count and flight_count[orig_dest]:
+                      rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[0])
+                      rep_sub.setsockopt(zmq.UNSUBSCRIBE, orig_dest[1])
+                      flight_count[orig_dest] -= 1
 
-              # If this is a pending DELETE response,
-              # unsubscribe from future response with the same keys
-              elif rep['op'] == 'DELETE' and key in pending_delete:
-                  rep_sub.setsockopt(zmq.UNSUBSCRIBE,
-                      orig_dest[0] + '->' + orig_dest[1] + 'DELETE')
-                  pending_delete.remove(key)
+                  # If this is a pending DELETE response,
+                  # unsubscribe from future response with the same keys
+                  elif rep['op'] == 'DELETE' and key in pending_delete:
+                      rep_sub.setsockopt(zmq.UNSUBSCRIBE,
+                          orig_dest[0] + '->' + orig_dest[1] + 'DELETE')
+                      pending_delete.remove(key)
+
+                  subgraph.remove(key)
                   main.send_multipart(ident + ['rep', json.dumps(rep)])
 
     # Close sockets
