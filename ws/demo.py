@@ -284,6 +284,7 @@ if len(sys.argv) < 4:
 broker_fe_url = 'tcp://' + sys.argv[1]
 broker_pub_url = 'tcp://' + sys.argv[2]
 name_url = 'tcp://' + sys.argv[3]
+main_url = 'inproc://main'
 
 sender_id = '82209006-86FF-4982-B5EA-D1E29E55D480'
 conn = handler.Connection(sender_id, 'tcp://127.0.0.1:9999',
@@ -297,28 +298,12 @@ name_ops = ['NAME_INSERT', 'NAME_LOOKUP']
 error_msg = 'Use one of the following: \'INSERT,i,j,w\', \'DELETE,i,j\', \'FIND,i,j\', \'RANGE,i1,j1,i2,j2\''
 
 logf=open('handler.log','wb')
-#logf=open('/dev/null','wb')
-#logf=sys.stdout
-
-main_url = 'inproc://main'
-rep_pub_url = 'inproc://rep_pub'
 
 context = zmq.Context.instance()
-
-# Map sender ID + connection ID to ZMQ socket ID
-conn_dict = {}
 
 # communicate with worker threads
 main = context.socket(zmq.ROUTER)
 main.bind(main_url)
-
-# Pub socket to broadcast some results to all active clients
-rep_pub = context.socket(zmq.XPUB)
-rep_pub.bind(rep_pub_url)
-
-# Sub socket to listen to results from other brokers
-peer_sub = context.socket(zmq.XSUB)
-peer_sub.connect(broker_pub_url)
 
 # Connect to name server
 name_server = context.socket(zmq.REQ)
@@ -327,8 +312,9 @@ name_server.connect(name_url)
 poller = zmq.Poller()
 poller.register(conn.reqs)
 poller.register(main, zmq.POLLIN)
-poller.register(peer_sub, zmq.POLLIN)
-poller.register(rep_pub, zmq.POLLIN)
+
+# Map sender ID + connection ID to ZMQ socket ID
+conn_dict = {}
 
 print 'Starting main loop:'
 while True:
@@ -345,17 +331,6 @@ while True:
         for zmq_id in conn_dict.values():
           main.send_multipart([zmq_id, 'die'])
         sys.exit()
-
-    if peer_sub in socks:
-        # Forward message
-        parts = peer_sub.recv_multipart()
-        rep_pub.send_multipart(parts)
-
-    if rep_pub in socks:
-        # Subscription traveling upstream
-        parts = rep_pub.recv_multipart()
-        peer_sub.send_multipart(parts)
-
 
     # Route worker thread messages back to WS client using conn_id & sender_id
     if main in socks:
@@ -408,7 +383,7 @@ while True:
 
             # Spawn a worker thread to handler client subscriptions
             thread = threading.Thread(target=worker_routine,
-                args=(req.sender, req.conn_id, main_url, broker_fe_url, rep_pub_url))
+                args=(req.sender, req.conn_id, main_url, broker_fe_url, broker_pub_url))
             thread.start()
             conn.reply_websocket(req, 'this is a ping from server', wsutil.OP_PING)
             # conn.reply_websocket(req, 'this is a pong from server', wsutil.OP_PONG)
