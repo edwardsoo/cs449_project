@@ -18,3 +18,7 @@ tmux send-keys 'cd broker' 'C-m'
 tmux send-keys './name_server 66666' 'C-m'
 tmux split-window -h -t 0
 tmux send-keys 'python ws/demo.py 127.0.0.1:22222 127.0.0.1:44444 127.0.0.1:66666' 'C-m'
+tmux split-window -v -t 0
+tmux send-keys 'cd graph/GraphScript' 'C-m'
+tmux send-keys 'make' 'C-m'
+tmux send-keys './GraphRead 127.0.0.1:11117 1' 'C-m'

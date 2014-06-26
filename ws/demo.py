@@ -502,7 +502,8 @@ while True:
                     names = ['op', 'success', 'message', 'key', 'value']
                     key_vals = {names[i]:msg_parts[i]  for i in xrange(len(msg_parts))}
                     json_msg = json.dumps(key_vals)
-                    conn.reply_websocket(req, json_msg, opcode)
+                    if (cmd == 'NAME_LOOKUP'):
+                        conn.reply_websocket(req, json_msg, opcode)
 
                 else:
                     conn.reply_websocket(req, error_msg, opcode)
